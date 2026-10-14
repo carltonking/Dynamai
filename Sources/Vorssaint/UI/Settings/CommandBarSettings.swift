@@ -18,6 +18,7 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarHidden) private var hiddenRaw = ""
     @AppStorage(DefaultsKey.commandBarLinks) private var linksData = Data()
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
+    @AppStorage(DefaultsKey.commandBarAppShortcutMinimizes) private var appShortcutMinimizes = false
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
     @State private var editing: CommandBarLink?
@@ -139,6 +140,10 @@ struct CommandBarSettings: View {
                 Text(text.appCenterCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Picker(text.appShortcutInFront, selection: $appShortcutMinimizes) {
+                    Text(text.appShortcutHides).tag(false)
+                    Text(text.appShortcutMinimizes).tag(true)
+                }
             }
 
             Section {

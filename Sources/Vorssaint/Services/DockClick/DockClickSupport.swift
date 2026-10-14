@@ -226,6 +226,17 @@ enum DockClickSupport {
         return depths.sorted { $0.depth < $1.depth }.map(\.index)
     }
 
+    /// What an app's own shortcut does when it minimizes instead of hiding:
+    /// windows up on an app in front go down, an app with every window
+    /// minimized comes back, and anything else (nothing to act on, or a
+    /// fullscreen window, which cannot minimize) is left to the caller.
+    static func shortcutAction(inFront: Bool, hasUnminimizedWindows: Bool,
+                               hasMinimizedWindows: Bool, hasFullscreenWindows: Bool) -> DockClickAction? {
+        if inFront, hasUnminimizedWindows, !hasFullscreenWindows { return .minimize }
+        if !hasUnminimizedWindows, hasMinimizedWindows, !hasFullscreenWindows { return .restore }
+        return nil
+    }
+
     static func action(appIsFrontmost: Bool,
                        hasUnminimizedWindows: Bool,
                        hasMinimizedWindows: Bool,

@@ -1462,6 +1462,27 @@ enum CommandBarFeatureTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarLinks)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarPositionOffset),
                "the command bar settings travel in backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarAppShortcutMinimizes] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarAppShortcutMinimizes),
+               "an app shortcut keeps hiding its app until the person picks minimizing, and the choice is backed up")
+        func shortcutAction(inFront: Bool, up: Bool, down: Bool, fullscreen: Bool = false) -> DockClickAction? {
+            DockClickSupport.shortcutAction(inFront: inFront, hasUnminimizedWindows: up,
+                                            hasMinimizedWindows: down, hasFullscreenWindows: fullscreen)
+        }
+        suite.expect(shortcutAction(inFront: true, up: true, down: false) == .minimize
+                && shortcutAction(inFront: true, up: true, down: true) == .minimize,
+               "an app in front with windows up minimizes them from its shortcut")
+        suite.expect(shortcutAction(inFront: true, up: false, down: true) == .restore
+                && shortcutAction(inFront: false, up: false, down: true) == .restore,
+               "the next press brings every minimized window back, in front or not")
+        suite.expect(shortcutAction(inFront: false, up: true, down: false) == nil
+                && shortcutAction(inFront: false, up: true, down: true) == nil,
+               "an app behind others with a window up is brought forward, not minimized")
+        suite.expect(shortcutAction(inFront: true, up: false, down: false) == nil,
+               "an app with no windows at all is opened the ordinary way")
+        suite.expect(shortcutAction(inFront: true, up: true, down: false, fullscreen: true) == nil
+                && shortcutAction(inFront: true, up: false, down: true, fullscreen: true) == nil,
+               "a fullscreen window cannot minimize, so the app falls back to hiding")
         // MARK: Command bar search and ranking
 
         let firstBarPresentation = UUID()
@@ -1785,7 +1806,7 @@ enum CommandBarFeatureTests {
             .components(separatedBy: "private var storedHiddenKeys").first ?? ""
         suite.expect(runRowCode.contains("!isVisible, let app = installedApp(for: entry)")
                 && runRowCode.contains("CommandBarRowShortcuts.hidesAppInFront(")
-                && runRowCode.contains("running.hide()\n            return")
+                && runRowCode.contains("running.hide()\n                return")
                 && !runRowCode.contains("running.hide() {"),
                "only a closed bar hides an app row, through the shared rule, whatever hide() returns")
         suite.expect(runRowCode.contains(

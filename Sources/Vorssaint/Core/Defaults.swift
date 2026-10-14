@@ -625,6 +625,8 @@ enum DefaultsKey {
     static let commandBarHidden = "commandBarHidden"         // row keys the person never wants offered
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
+    /// An app shortcut pressed with its app in front minimizes the windows instead of hiding the app. Off by default
+    static let commandBarAppShortcutMinimizes = "commandBarAppShortcutMinimizes"
     static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
     static let commandBarEmojiSkinTone = "commandBarEmojiSkinTone" // "" is the yellow default
     // The folders a file search looks in, one per line, written with a tilde
@@ -1909,6 +1911,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
+        DefaultsKey.commandBarAppShortcutMinimizes: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,
         DefaultsKey.commandBarDisabledSources: "",

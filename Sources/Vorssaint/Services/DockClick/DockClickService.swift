@@ -393,6 +393,29 @@ final class DockClickService {
         }
     }
 
+    // MARK: - App shortcut
+
+    /// The Command Bar's app shortcut, when it minimizes instead of hiding:
+    /// the same minimize and restore a Dock click performs, so both share one
+    /// record of the stacking to bring back. An app in front with windows up
+    /// goes down; an app whose windows are all minimized comes back. Returns
+    /// false for anything else, so the caller opens or hides the app as before.
+    func toggleMinimizedFromShortcut(_ app: NSRunningApplication, inFront: Bool) -> Bool {
+        guard AXIsProcessTrusted(), app.processIdentifier != getpid() else { return false }
+        let pid = app.processIdentifier
+        let windows = Self.standardWindows(pid: pid)
+        guard let action = DockClickSupport.shortcutAction(
+            inFront: inFront, hasUnminimizedWindows: !windows.unminimized.isEmpty,
+            hasMinimizedWindows: !windows.minimized.isEmpty,
+            hasFullscreenWindows: windows.hasFullscreen) else { return false }
+        let now = CFAbsoluteTimeGetCurrent()
+        let record = lastAction[pid].flatMap { now - $0.time < DockClickSupport.toggleIntentWindow ? $0 : nil }
+        commit(PendingClick(pid: pid, app: app, origin: .zero, action: action,
+                            unminimized: windows.unminimized, minimized: windows.minimized,
+                            priorRecord: record))
+        return true
+    }
+
     // MARK: - Settling sweep
 
     /// Re-asserts the action once the animation settles: windows the batched

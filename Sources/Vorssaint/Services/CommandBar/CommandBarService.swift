@@ -913,15 +913,24 @@ final class CommandBarService: ObservableObject {
         // it on that answer would bring it straight back. Launcher-style apps
         // can misreport isActive, so the workspace's frontmost app is the
         // tiebreaker, as for the Dock.
-        if !isVisible, let app = installedApp(for: entry), let running = runningApplication(for: app),
-           CommandBarRowShortcuts.hidesAppInFront(
-               isFrontmost: running.isActive
-                   || NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier,
-               isHidden: running.isHidden,
-               ownsFrontWindow: WindowServerSupport.frontWindowOwner(
-                   in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier) {
-            running.hide()
-            return
+        if !isVisible, let app = installedApp(for: entry), let running = runningApplication(for: app) {
+            let inFront = CommandBarRowShortcuts.hidesAppInFront(
+                isFrontmost: running.isActive
+                    || NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier,
+                isHidden: running.isHidden,
+                ownsFrontWindow: WindowServerSupport.frontWindowOwner(
+                    in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier)
+            // Set to minimize, the key puts the windows in the Dock and the
+            // next press brings them back, the way a Dock click does. What it
+            // cannot minimize (a fullscreen window) is hidden instead.
+            if UserDefaults.standard.bool(forKey: DefaultsKey.commandBarAppShortcutMinimizes),
+               DockClickService.shared.toggleMinimizedFromShortcut(running, inFront: inFront) {
+                return
+            }
+            if inFront {
+                running.hide()
+                return
+            }
         }
         if isVisible { hide() }
         finish(entry, value: nil)
