@@ -73,34 +73,9 @@ struct NotchNoticeView: View {
             }
         } else {
             HStack(spacing: 8) {
-                Group {
-                    // A notice about the agent itself wears its mark, and a
-                    // warning keeps a symbol that says what happened.
-                    if let reaction = companionReaction {
-                        let size = NotchMascotSupport.noticeSize
-                        NotchMascotView(look: NotchMascotSupport.look(), mood: NotchService.shared.mascotRestingMood,
-                                        size: size, reaction: NotchMascotSupport.reacts() ? reaction : nil)
-                            .frame(width: size, height: size)
-                            // Half a point low, on the line it rests on beside
-                            // the camera, so it steps in and out with no jump.
-                            .offset(y: 0.5)
-                            // One notice in place of another plays its own reaction,
-                            // swapped at once: two of it crossfading in one place dimmed it.
-                            .id("\(notice.event)|\(notice.title)|\(notice.detail)|\(reaction.rawValue)")
-                            .transition(.identity)
-                            .opacity(hidesMascot ? 0 : 1)
-                            .animation(nil, value: hidesMascot)
-                    } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
-                        NotchAgentMark(provider: agent, size: 13)
-                    } else if notice.event == .track {
-                        NotchTrackArtwork(size: min(18, geometry.stripHeight - 6))
-                    } else {
-                        Image(systemName: notice.symbol)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(tint)
-                    }
-                }
-                .frame(width: 18)
+                // An agent's reply reads as its name alone; its wing has no
+                // room for a mark (NotchNotice.wings leaves it out).
+                if notice.chatAgent == nil { mark }
                 Text(notice.level == nil ? notice.title : notice.detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(textTint)
@@ -113,6 +88,38 @@ struct NotchNoticeView: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
             .transaction { $0.disablesAnimations = false }
         }
+    }
+
+    /// The symbol before the title; with the companion on, it stands in.
+    @ViewBuilder private var mark: some View {
+        Group {
+            // A notice about the agent itself wears its mark, and a
+            // warning keeps a symbol that says what happened.
+            if let reaction = companionReaction {
+                let size = NotchMascotSupport.noticeSize
+                NotchMascotView(look: NotchMascotSupport.look(), mood: NotchService.shared.mascotRestingMood,
+                                size: size, reaction: NotchMascotSupport.reacts() ? reaction : nil)
+                    .frame(width: size, height: size)
+                    // Half a point low, on the line it rests on beside
+                    // the camera, so it steps in and out with no jump.
+                    .offset(y: 0.5)
+                    // One notice in place of another plays its own reaction,
+                    // swapped at once: two of it crossfading in one place dimmed it.
+                    .id("\(notice.event)|\(notice.title)|\(notice.detail)|\(reaction.rawValue)")
+                    .transition(.identity)
+                    .opacity(hidesMascot ? 0 : 1)
+                    .animation(nil, value: hidesMascot)
+            } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
+                NotchAgentMark(provider: agent, size: 13)
+            } else if notice.event == .track {
+                NotchTrackArtwork(size: min(18, geometry.stripHeight - 6))
+            } else {
+                Image(systemName: notice.symbol)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(tint)
+            }
+        }
+        .frame(width: 18)
     }
 
     @ViewBuilder private var trailing: some View {
