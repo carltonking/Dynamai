@@ -4125,8 +4125,19 @@ final class NotchService: ObservableObject {
         if NotchSupport.routes(.systemNotification) {
             NotchNotificationService.shared.received.sink { [weak self] item in
                 guard let self else { return }
-                let shown = self.show(NotchNotice(event: .systemNotification, title: item.content.title,
-                                                 detail: item.content.body, symbol: "bell.fill", notification: item.content, notificationID: item.id))
+                let defaults = UserDefaults.standard
+                // A text from VERTUS or Instinct reads as the agent's name
+                // alone, as its own replies do, and opens its page.
+                let agent = NotchAgentReplySupport.agent(
+                    forBannerTitle: item.content.title,
+                    vertusNumber: defaults.string(forKey: DefaultsKey.notchHermesChatNumber),
+                    instinctNumber: defaults.string(forKey: DefaultsKey.notchInstinctNumber))
+                let notice = agent.map {
+                    NotchNotice(event: .agents, title: NotchAgentReplySupport.noticeName($0), detail: "",
+                                symbol: "bubble.left.fill", chatAgent: $0)
+                } ?? NotchNotice(event: .systemNotification, title: item.content.title,
+                                 detail: item.content.body, symbol: "bell.fill", notification: item.content, notificationID: item.id)
+                let shown = self.show(notice)
                 if shown, !self.expanded, self.captureControls == nil, !self.dragPlaceholder {
                     NotchNotificationService.shared.hideNative(item.id)
                 }

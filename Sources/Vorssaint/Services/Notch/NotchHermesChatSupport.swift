@@ -408,6 +408,26 @@ enum NotchAgentReplySupport {
         return words.isEmpty ? files : words + "\n\n" + files
     }
 
+    /// The name an agent's notice shows: VERTUS, INSTINCT.
+    static func noticeName(_ agent: String) -> String {
+        agent == "instinct" ? "INSTINCT" : "VERTUS"
+    }
+
+    /// Which agent a mirrored banner came from: one titled with VERTUS's or
+    /// Instinct's number (Messages names the sender), or with its name.
+    static func agent(forBannerTitle title: String, vertusNumber: String?, instinctNumber: String?) -> String? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        for (agent, number) in [("instinct", instinctNumber), ("vertus", vertusNumber)] {
+            if let number, !number.trimmingCharacters(in: .whitespaces).isEmpty,
+               InstinctMessagesSupport.sameHandle(trimmed, number) { return agent }
+        }
+        let lowered = trimmed.lowercased()
+        if lowered.contains("instinct") { return "instinct" }
+        if lowered.contains("vertus") { return "vertus" }
+        return nil
+    }
+
     static func attachments(_ urls: [URL]) -> [NotchHermesChatMessage.Attachment]? {
         let list = urls.map { NotchHermesChatMessage.Attachment(path: $0.path, name: $0.lastPathComponent) }
         return list.isEmpty ? nil : list

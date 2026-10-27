@@ -793,8 +793,9 @@ final class NotchHermesChatService: ObservableObject {
         let onScreen = notch.expanded && notch.selected == agent.module
             && !(notch.showingSections || notch.showingAppPanel || notch.showingCommandBar)
         guard !onScreen else { return }
-        notch.show(NotchNotice(event: .agents, title: strings(L10n.shared.language).title, detail: "",
-                               symbol: agent.module.symbol, chatAgent: agent == .vertus ? "vertus" : "instinct"))
+        let name = agent == .vertus ? "vertus" : "instinct"
+        notch.show(NotchNotice(event: .agents, title: NotchAgentReplySupport.noticeName(name), detail: "",
+                               symbol: agent.module.symbol, chatAgent: name))
     }
 
     /// VERTUS has something to say, unasked. Nothing waits on it, so unlike

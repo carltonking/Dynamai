@@ -56,5 +56,17 @@ enum NotchAgentMessagingTests {
             suite.expect(InstinctMessagesSupport.sendArguments(number: " +1555 ", file: files[1])
                          == ["send", "--to", "+1555", "--file", "/tmp/notes.pdf"], "a file is sent on its own")
         }
+
+        suite.run("agent texts show as the agent's name") {
+            func agent(_ title: String) -> String? {
+                Support.agent(forBannerTitle: title, vertusNumber: "+1 (628) 789-6792", instinctNumber: "+1 (650) 630-9054")
+            }
+            suite.expect(agent("+1 (628) 789-6792") == "vertus", "VERTUS's number")
+            suite.expect(agent("+16506309054") == "instinct", "Instinct's number however it is written")
+            suite.expect(agent("Instinct AI") == "instinct", "a contact named for it")
+            suite.expect(agent("Mom") == nil && agent("") == nil, "everyone else stays as Messages names them")
+            suite.expect(Support.noticeName("vertus") == "VERTUS" && Support.noticeName("instinct") == "INSTINCT",
+                         "both names in capitals")
+        }
     }
 }
