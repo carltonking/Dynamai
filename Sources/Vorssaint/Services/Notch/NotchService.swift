@@ -2303,6 +2303,49 @@ final class NotchService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
+    /// The agent page a drag over the island is for: the one on screen, or
+    /// the one a closed island reopens onto. Its files go with that page's
+    /// next message rather than to the shelf, which used to take the page's
+    /// place under the drag.
+    private var agentChatForDrop: NotchHermesChatService? {
+        guard acceptsUserInteraction, captureControls == nil else { return nil }
+        let page: NotchModule
+        if expanded {
+            guard selectedMetric == nil, !showingSections, !showingAppPanel, !showingCommandBar else { return nil }
+            page = selected
+        } else {
+            let destination = reopeningDestination
+            guard !destination.appPanel, !destination.sections, !NotchSupport.opensOnlyFromShortcut() else { return nil }
+            page = destination.module
+        }
+        switch page {
+        case .hermesChat where modules.contains(.hermesChat): return .shared
+        case .instinctChat where modules.contains(.instinctChat): return .instinct
+        default: return nil
+        }
+    }
+
+    /// The page taking the drag in progress, once it has entered.
+    private var agentDrop: NotchHermesChatService?
+
+    private func beginDrop(_ pasteboard: NSPasteboard) {
+        guard let chat = agentChatForDrop else { beginFileDrop(pasteboard); return }
+        agentDrop = chat
+        chat.dropTargeted = true
+        if !expanded { open(chat.agent.module, takeFocus: false) }
+    }
+
+    private func acceptDrop(_ pasteboard: NSPasteboard) -> Bool {
+        guard let chat = agentDrop else { return accept(pasteboard) }
+        endAgentDrop()
+        return chat.acceptDrop(pasteboard)
+    }
+
+    private func endAgentDrop() {
+        agentDrop?.dropTargeted = false
+        agentDrop = nil
+    }
+
     func beginFileDrop(_ pasteboard: NSPasteboard) {
         // A drag reaching a closed island that only a shortcut opens leaves it closed.
         guard canAcceptFileDrop, expanded || !NotchSupport.opensOnlyFromShortcut() else { return }
@@ -3503,20 +3546,33 @@ final class NotchService: ObservableObject {
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
         }
-        if modules.contains(.files), AppFeature.shelf.isAvailable {
+        panel?.fieldDropBelongsToIsland = { [weak self] pasteboard in
+            self?.agentChatForDrop != nil && NotchAgentDropSupport.carriesAttachments(pasteboard)
+        }
+        // An agent's page takes drops for its next message even without the shelf.
+        if (modules.contains(.files) && AppFeature.shelf.isAvailable) || modules.contains(where: \.isAgentChat) {
             windowHost?.setFileDropActions(NotchFileDropActions(
                 canAccept: { [weak self] pasteboard in
-                    self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
+                    guard let self else { return false }
+                    if self.agentChatForDrop != nil { return NotchAgentDropSupport.carriesAttachments(pasteboard) }
+                    return self.canAcceptFileDrop && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
-                enter: { [weak self] in self?.beginFileDrop($0) },
-                accept: { [weak self] in self?.accept($0) == true },
+                enter: { [weak self] in self?.beginDrop($0) },
+                accept: { [weak self] in self?.acceptDrop($0) == true },
                 exit: { [weak self] in
                     guard let self else { return }
+                    self.endAgentDrop()
                     self.endFileDrop()
                     self.hover(self.windowHost?.contains(NSEvent.mouseLocation) == true)
                 },
-                update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
+                update: { [weak self] in
+                    guard let self else { return false }
+                    return self.agentDrop != nil || self.updateFileDrop(at: $0)
+                },
+                acceptsLocalDrag: { [weak self] in
+                    self?.agentChatForDrop != nil && !ShelfService.shared.isInternalDragActive
+                }))
         } else { windowHost?.setFileDropActions(nil) }
         panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
         updateFullscreenVisibility(displayID: screen.notchDisplayID)

@@ -194,7 +194,6 @@ struct NotchHermesChatView: View {
     @State private var swipedMessage: UUID?
     @State private var swipeOffset: CGFloat = 0
     @State private var swipe = NotchMessagesSwipe()
-    @State private var dropTargeted = false
     private var text: NotchHermesChatStrings { chat.strings(l10n.language) }
     private var messaging: NotchAgentMessagingStrings { FeatureStrings.notchAgentMessaging(l10n.language) }
 
@@ -243,18 +242,13 @@ struct NotchHermesChatView: View {
             voice.cancelDictation()
             swipe.remove()
         }
-        // Files dropped anywhere on the page go with the next message.
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
-            for provider in providers {
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url, url.isFileURL else { return }
-                    DispatchQueue.main.async { if !chat.pendingAttachments.contains(url) { chat.pendingAttachments.append(url) } }
-                }
-            }
-            return true
-        }
+        // Files, screenshots and pictures dropped anywhere on the page go
+        // with the next message. The island's own drop target takes them
+        // (NotchService.agentChatForDrop): a SwiftUI drop here only saw file
+        // URLs, so a screenshot's thumbnail or a picture from an app fell
+        // through to the shelf.
         .overlay {
-            if dropTargeted {
+            if chat.dropTargeted {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.6), lineWidth: 2)
                     .allowsHitTesting(false)

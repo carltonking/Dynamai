@@ -881,7 +881,8 @@ def main():
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     write("NotchPanel.swift", "import AppKit\n"
-          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
+          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:")
+          + declaration("Sources/Vorssaint/Services/Notch/NotchFieldEditor.swift", "final class NotchFieldEditor:"))
     write("QuickTogglesAlert.swift", "import AppKit\nextension QuickTogglesAlertTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "    func emptyTrash()")
           + "}\n}\n")

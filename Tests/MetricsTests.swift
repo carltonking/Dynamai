@@ -122,6 +122,7 @@ struct MetricsTests {
             ("hermes-chat", {
                 NotchHermesChatTests.run(suite)
                 NotchAgentMessagingTests.run(suite)
+                NotchAgentDropTests.run(suite)
             }),
             ("features", {
                 FeatureCatalogTests.run(suite)

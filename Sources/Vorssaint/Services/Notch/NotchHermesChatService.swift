@@ -213,6 +213,8 @@ final class NotchHermesChatService: ObservableObject {
     /// closing the island and opening it again finds them as they were left.
     @Published var draft = ""
     @Published var pendingAttachments: [URL] = []
+    /// A drag over the island is headed for this page's next message.
+    @Published var dropTargeted = false
     @Published var replyTarget: UUID?
     @Published private(set) var reply = ""
     /// Reasoning Hermes streamed for this turn, shown dimmed above the reply.

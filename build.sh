@@ -301,6 +301,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
         Sources/Vorssaint/Core/NotchHermesChatStrings.swift
         Sources/Vorssaint/Services/Notch/NotchHermesChatSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchAgentDropSupport.swift
         Sources/Vorssaint/Core/NotchInstinctChatStrings.swift
         Sources/Vorssaint/Core/NotchAgentMessagingStrings.swift
         Sources/Vorssaint/Services/Notch/InstinctMessagesSupport.swift
