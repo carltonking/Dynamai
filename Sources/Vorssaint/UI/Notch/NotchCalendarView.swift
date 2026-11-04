@@ -17,6 +17,9 @@ struct NotchCalendarView: View {
     @State private var selectedDay: Date?
     /// The strip's month grid, in place of the strip and the cards.
     @State private var showingMonth = false
+    /// The event just opened from elsewhere, outlined for a moment so the
+    /// eye finds it once the agenda has scrolled to it.
+    @State private var highlighted: String?
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
     /// A month grid needs six rows beside an agenda; anything shorter shows
     /// the week as a strip above a vertical agenda.
@@ -65,6 +68,15 @@ struct NotchCalendarView: View {
         // date and the 12/24-hour clock follow the user's region.
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear { if ownsMonth { calendar.showMonth(focus) } }
+        // An event that has ended is not among the upcoming ones the agenda
+        // lists by default, so one opened from the Controls page's hours
+        // brings its day up first; the agenda then scrolls to it.
+        .onChange(of: calendar.loading ? nil : calendar.revealing, initial: true) { _, target in
+            guard !preview, let target, selectedDay == nil,
+                  let event = calendar.events.first(where: { $0.id == target }),
+                  event.end <= Date() else { return }
+            select(Calendar.current.startOfDay(for: event.start))
+        }
         .onChange(of: focus) { previous, date in
             // A month read already covers every week of that month, so
             // moving the strip within it keeps the loaded events.
@@ -240,8 +252,16 @@ struct NotchCalendarView: View {
                     guard !preview, let target else { return }
                     DispatchQueue.main.async {
                         guard !calendar.loading, calendar.revealing == target else { return }
+                        // Not listed here yet: the day it belongs to is
+                        // coming up, and its agenda scrolls instead.
+                        guard groups(now: Date()).contains(where: { $0.events.contains { $0.id == target } }) else { return }
                         calendar.revealing = nil
                         proxy.scrollTo(target, anchor: .center)
+                        highlighted = target
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                            guard highlighted == target else { return }
+                            withAnimation(.easeOut(duration: 0.4)) { highlighted = nil }
+                        }
                     }
                 }
         }
@@ -266,6 +286,13 @@ struct NotchCalendarView: View {
                                                   countdown: countdownChoice(event, now: now),
                                                   choose: { calendar.setCountdown($0, for: event) }) {
                                 openCalendar(showing: event)
+                            }
+                            .overlay {
+                                if highlighted == event.id {
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .strokeBorder(.white.opacity(0.7), lineWidth: 1.5)
+                                        .allowsHitTesting(false)
+                                }
                             }
                             .id(event.id)
                         }

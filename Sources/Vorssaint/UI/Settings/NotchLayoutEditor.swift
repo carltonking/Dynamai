@@ -266,7 +266,6 @@ struct NotchLayoutEditor: View {
     private var islandPreview: some View {
         let items = NotchSupport.controls()
         let levels = items.filter(\.isLevel)
-        let shortcuts = NotchSupport.controlShortcuts(items)
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
@@ -274,7 +273,7 @@ struct NotchLayoutEditor: View {
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
         let controls = NotchLayout.controls(hasCards: NotchSupport.controlsHaveCards(items), levelRow: !belowLevels.isEmpty,
-                                            shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
+                                            shortcutCount: 0, width: contentWidth, height: contentHeight)
         return Button(action: editContents) {
             Color.clear.contentShape(NotchShape.island(height: actualHeight, geometry: previewGeometry))
         }
@@ -302,14 +301,6 @@ struct NotchLayoutEditor: View {
                     } else {
                         if controls.levelRow > 0 { NotchLevelRow(levels: belowLevels) { levelRow($0) } }
                         if controls.cardRow > 0 { cardRow(items: items, height: controls.cardRow) }
-                        if controls.shortcutRows > 0 {
-                            NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
-                                      width: contentWidth, spacing: NotchLayout.shortcutSpacing,
-                                      leastSpacing: NotchLayout.shortcutLeastSpacing,
-                                      rowSpacing: controls.shortcutRowSpacing) { item in
-                                NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {}
-                            }
-                        }
                     }
                 }
                 .frame(width: contentWidth, height: contentHeight, alignment: .top)
@@ -327,51 +318,53 @@ struct NotchLayoutEditor: View {
         .frame(width: actualWidth, height: actualHeight)
     }
 
-    /// The card row as the island draws it, without live data: the widget
-    /// stack's square with its cover and dots, and the calendar's hours with
-    /// now through the middle.
+    /// The widget screens as the island draws them, without live data: the
+    /// first screen, the calendar's hours with now through the middle or the
+    /// smaller widgets side by side, and a dot for each screen beside it.
     private func cardRow(items: [NotchControlItem], height: CGFloat) -> some View {
-        let widgets = items.filter(\.isWidget)
-        let calendar = items.contains(.calendar)
-        return HStack(spacing: NotchLayout.cardSpacing) {
-            if !widgets.isEmpty {
-                HStack(spacing: 8) {
-                    VStack(spacing: 8) {
-                        Image(systemName: widgets[0].symbol)
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .frame(width: height * 0.5, height: height * 0.5)
-                            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        Text(widgets[0].title(l10n)).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    }
-                    .frame(width: calendar ? height : nil, height: height)
-                    .frame(maxWidth: calendar ? nil : .infinity)
-                    .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
-                    if widgets.count > 1 {
-                        VStack(spacing: 8) {
-                            ForEach(widgets.indices, id: \.self) { index in
-                                Circle().fill(.white.opacity(index == 0 ? 0.95 : 0.35)).frame(width: 6, height: 6)
+        let screens = NotchSupport.widgetScreens(items)
+        return HStack(spacing: 10) {
+            if let first = screens.first {
+                if first == [.calendar] {
+                    GeometryReader { proxy in
+                        ZStack(alignment: .topLeading) {
+                            ForEach(0..<5, id: \.self) { hour in
+                                Rectangle().fill(.white.opacity(0.08)).frame(height: 1)
+                                    .offset(y: proxy.size.height * CGFloat(hour) / 4)
                             }
+                            Rectangle().fill(Color.red).frame(height: 1.5).offset(y: proxy.size.height / 2)
                         }
-                        .frame(width: 12)
+                        .padding(.leading, 40)
+                    }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: height)
+                    .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+                } else {
+                    HStack(spacing: NotchLayout.cardSpacing) {
+                        ForEach(first) { widget in
+                            VStack(spacing: 8) {
+                                Image(systemName: widget.symbol)
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.6))
+                                    .frame(width: height * 0.5, height: height * 0.5)
+                                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                Text(widget.title(l10n)).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: height)
+                            .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+                        }
                     }
                 }
             }
-            if calendar {
-                GeometryReader { proxy in
-                    ZStack(alignment: .topLeading) {
-                        ForEach(0..<5, id: \.self) { hour in
-                            Rectangle().fill(.white.opacity(0.08)).frame(height: 1)
-                                .offset(y: proxy.size.height * CGFloat(hour) / 4)
-                        }
-                        Rectangle().fill(Color.red).frame(height: 1.5).offset(y: proxy.size.height / 2)
+            if screens.count > 1 {
+                VStack(spacing: 8) {
+                    ForEach(screens.indices, id: \.self) { index in
+                        Circle().fill(.white.opacity(index == 0 ? 0.95 : 0.35)).frame(width: 6, height: 6)
                     }
-                    .padding(.leading, 40)
                 }
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+                .frame(width: 12)
             }
         }
         .frame(height: height)

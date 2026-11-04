@@ -2083,9 +2083,21 @@ enum NotchSupport {
     /// Whether the Controls page has its card row: a widget or the calendar.
     static func controlsHaveCards(_ items: [NotchControlItem]) -> Bool { items.contains(where: \.isCard) }
 
-    /// The tiles under the card row.
-    static func controlShortcuts(_ items: [NotchControlItem]) -> [NotchControlItem] {
-        items.filter { !$0.isLevel && !$0.isCard }
+    /// The tiles under the card row. The Controls page is the levels and
+    /// the widget screens alone now, as Apple's widgets sit on their own, so
+    /// no tile takes room from them; the actions stay in the command bar and
+    /// their own sections.
+    static func controlShortcuts(_ items: [NotchControlItem]) -> [NotchControlItem] { [] }
+
+    /// The widget screens the Controls page swipes through, top to bottom:
+    /// the calendar's hours on a screen of their own, then the smaller
+    /// widgets side by side on the next, in their order in the list.
+    static func widgetScreens(_ items: [NotchControlItem]) -> [[NotchControlItem]] {
+        var screens: [[NotchControlItem]] = []
+        if items.contains(.calendar) { screens.append([.calendar]) }
+        let widgets = items.filter(\.isWidget)
+        if !widgets.isEmpty { screens.append(widgets) }
+        return screens
     }
 
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {

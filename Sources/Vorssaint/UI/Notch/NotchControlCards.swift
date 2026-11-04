@@ -4,57 +4,29 @@
 import AppKit
 import SwiftUI
 
-/// The Controls page's card row: the widget stack, square, and the calendar's
-/// four hours beside it. Either takes the whole row when the other is hidden.
+/// The Controls page's widgets, as Apple's widgets page: full-width screens
+/// stacked one above the other, a vertical swipe or scroll moving to the
+/// next and the dots beside them saying which one shows. The calendar's
+/// hours have the first screen; the smaller widgets share the second, side
+/// by side. The stack moves only when it is swiped; it opens on the first.
 struct NotchControlCards: View {
     @ObservedObject var service: NotchService
     let items: [NotchControlItem]
     let height: CGFloat
-
-    var body: some View {
-        let widgets = items.filter(\.isWidget)
-        let calendar = items.contains(.calendar)
-        GeometryReader { proxy in
-            HStack(spacing: NotchLayout.cardSpacing) {
-                if !widgets.isEmpty {
-                    // A third of the row, as designed, and never narrower than
-                    // square, so the batteries keep room for their names.
-                    NotchWidgetStack(service: service, widgets: widgets, height: height,
-                                     width: calendar ? max(height, proxy.size.width * 0.34) : nil)
-                }
-                if calendar {
-                    NotchCalendarTimelineWidget(service: service)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: height)
-                }
-            }
-        }
-        .frame(height: height)
-    }
-}
-
-/// Widgets stacked as Apple's Smart Stack stacks them: one shows at a time,
-/// a vertical swipe or scroll pages to the next, and the dots beside the
-/// stack say which one it is and jump to another.
-private struct NotchWidgetStack: View {
-    @ObservedObject var service: NotchService
-    let widgets: [NotchControlItem]
-    let height: CGFloat
-    /// Its width beside the calendar; alone it takes the row.
-    let width: CGFloat?
-    @State private var current: NotchControlItem?
+    @State private var current: Int?
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let shown = current.flatMap { widgets.contains($0) ? $0 : nil } ?? widgets[0]
-        HStack(spacing: 8) {
+        let screens = NotchSupport.widgetScreens(items)
+        let shown = min(current ?? 0, max(0, screens.count - 1))
+        HStack(spacing: 10) {
             GeometryReader { proxy in
                 ScrollView(.vertical) {
                     LazyVStack(spacing: 0) {
-                        ForEach(widgets) { widget in
-                            page(widget, size: proxy.size)
+                        ForEach(screens.indices, id: \.self) { index in
+                            screen(screens[index], size: proxy.size)
                                 .frame(width: proxy.size.width, height: proxy.size.height)
-                                .id(widget)
+                                .id(index)
                         }
                     }
                     .scrollTargetLayout()
@@ -62,44 +34,61 @@ private struct NotchWidgetStack: View {
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $current)
                 .scrollIndicators(.hidden)
-                .scrollDisabled(widgets.count < 2)
+                .scrollDisabled(screens.count < 2)
             }
-            .frame(width: width)
-            .frame(maxWidth: width == nil ? .infinity : nil)
             .frame(height: height)
-            .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-            if widgets.count > 1 {
-                dots(shown: shown)
+            if screens.count > 1 {
+                dots(screens, shown: shown)
+            }
+        }
+        .frame(height: height)
+    }
+
+    @ViewBuilder private func screen(_ widgets: [NotchControlItem], size: CGSize) -> some View {
+        if widgets == [.calendar] {
+            NotchCalendarTimelineWidget(service: service)
+        } else {
+            let width = (size.width - NotchLayout.cardSpacing * CGFloat(max(0, widgets.count - 1)))
+                / CGFloat(max(1, widgets.count))
+            HStack(spacing: NotchLayout.cardSpacing) {
+                ForEach(widgets) { widget in
+                    card(widget, size: CGSize(width: width, height: size.height))
+                }
             }
         }
     }
 
-    @ViewBuilder private func page(_ widget: NotchControlItem, size: CGSize) -> some View {
-        switch widget {
-        case .music: NotchMusicWidget(notch: service, size: size)
-        case .batteries: NotchBatteriesWidget(size: size)
-        default: EmptyView()
+    @ViewBuilder private func card(_ widget: NotchControlItem, size: CGSize) -> some View {
+        Group {
+            switch widget {
+            case .music: NotchMusicWidget(notch: service, size: size)
+            case .batteries: NotchBatteriesWidget(size: size)
+            default: EmptyView()
+            }
         }
+        .frame(width: size.width, height: size.height)
+        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func dots(shown: NotchControlItem) -> some View {
+    private func dots(_ screens: [[NotchControlItem]], shown: Int) -> some View {
         VStack(spacing: 8) {
-            ForEach(widgets) { widget in
+            ForEach(screens.indices, id: \.self) { index in
+                let title = screens[index].map { $0.title(l10n) }.joined(separator: ", ")
                 Button {
-                    withAnimation(.easeOut(duration: 0.25)) { current = widget }
+                    withAnimation(.easeOut(duration: 0.25)) { current = index }
                 } label: {
                     Circle()
-                        .fill(.white.opacity(widget == shown ? 0.95 : 0.35))
+                        .fill(.white.opacity(index == shown ? 0.95 : 0.35))
                         .frame(width: 6, height: 6)
                         .frame(width: 12, height: 12)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(widget.title(l10n))
-                .accessibilityLabel(widget.title(l10n))
-                .accessibilityAddTraits(widget == shown ? .isSelected : [])
+                .help(title)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(index == shown ? .isSelected : [])
             }
         }
         .frame(width: 12)
@@ -134,7 +123,7 @@ private struct NotchBatteriesWidget: View {
         }
         rows += PeripheralBatterySupport.sorted(monitor.snapshot.peripheralBatteries).map { device in
             Row(id: device.id, symbol: NotchAccessorySupport.symbol(for: device.kind, name: device.name),
-                name: device.name, percent: device.percent, charging: false)
+                name: device.name, percent: device.percent, charging: device.isCharging)
         }
         return rows
     }
@@ -230,7 +219,8 @@ private struct NotchBatteryGlyph: View {
 
 /// Four hours of today, two either side of now, with now as a red line
 /// through the middle. The line stays put and the events move up past it as
-/// the time goes. A click opens the Calendar page.
+/// the time goes. A click on an event opens it on the Calendar page; a
+/// click anywhere else opens the page.
 private struct NotchCalendarTimelineWidget: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var calendar = NotchCalendarService.shared
@@ -282,9 +272,13 @@ private struct NotchCalendarTimelineWidget: View {
                     let columnWidth = (width - inset) / CGFloat(placement.columns)
                     let top = placement.top * height
                     let bottom = placement.bottom * height
-                    NotchTimelineEvent(event: placement.event, locale: locale, untitled: text.untitled)
-                        .frame(width: max(0, columnWidth - 3), height: max(10, bottom - top - 2))
-                        .offset(x: Self.gutter + inset + CGFloat(placement.column) * columnWidth, y: top + 1)
+                    Button { service.openCalendarEvent(placement.event.id) } label: {
+                        NotchTimelineEvent(event: placement.event, locale: locale, untitled: text.untitled)
+                    }
+                    .buttonStyle(.plain)
+                    .help(placement.event.title)
+                    .frame(width: max(0, columnWidth - 3), height: max(10, bottom - top - 2))
+                    .offset(x: Self.gutter + inset + CGFloat(placement.column) * columnWidth, y: top + 1)
                 }
 
                 if placements.isEmpty, !calendar.loading {
@@ -300,6 +294,7 @@ private struct NotchCalendarTimelineWidget: View {
                     .fill(Color.red)
                     .frame(width: width + 6, height: 1.5)
                     .offset(x: Self.gutter, y: height / 2 - 0.75)
+                    .allowsHitTesting(false)
                 Text(Self.clock(now, locale: locale))
                     .font(Self.font)
                     .foregroundStyle(.white)

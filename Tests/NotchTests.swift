@@ -712,12 +712,6 @@ enum NotchTests {
                                             spacing: spacing, least: NotchLayout.shortcutLeastSpacing, width: content.width)
         suite.expect(content.width == CGFloat(304) && rows == 2 && narrowGap == CGFloat(0),
                      "at the narrowest width eight tiles sit in two rows of four with their gaps closed")
-        // The island and its Layout preview hand the rail the same least gap.
-        for path in ["Sources/Vorssaint/UI/Notch/NotchControlsView.swift", "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift"] {
-            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
-            suite.expect(source.components(separatedBy: "leastSpacing: NotchLayout.shortcutLeastSpacing").count == 2,
-                         "the home page's rail closes its gaps before it scrolls in \(path)")
-        }
     }
 
     /// A home page rail a few points short of its next row closes its rows,
@@ -836,13 +830,6 @@ enum NotchTests {
             let twoRows = layout == NotchControlsLayout(cardRow: 0, shortcutRows: 2, shortcutRowSpacing: 6)
             suite.expect(fills && content == CGSize(width: 304, height: 154) && twoRows && gap == CGFloat(0),
                          "below a \(Int(camera))-point camera the smallest island holds eight shortcuts in two rows of four")
-        }
-        // The island and its Layout preview space the rows as the layout does.
-        for (path, call) in [("Sources/Vorssaint/UI/Notch/NotchControlsView.swift", "rowSpacing: layout.shortcutRowSpacing"),
-                             ("Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", "rowSpacing: controls.shortcutRowSpacing")] {
-            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
-            suite.expect(source.components(separatedBy: call).count == 2,
-                         "the home page's rail spaces its rows as its layout does in \(path)")
         }
     }
 
@@ -3766,9 +3753,16 @@ enum NotchTests {
 
         suite.expect(NotchControlItem.batteries.isWidget && NotchControlItem.music.isWidget
                      && NotchControlItem.calendar.isCard && !NotchControlItem.calendar.isWidget
-                     && NotchSupport.controlShortcuts([.music, .calendar, .batteries, .timer, .volume]) == [.timer]
+                     && NotchSupport.controlShortcuts([.music, .calendar, .batteries, .timer, .volume]).isEmpty
                      && NotchSupport.controlsHaveCards([.calendar]) && !NotchSupport.controlsHaveCards([.timer]),
-               "music and the batteries stack as widgets, the calendar draws beside them and only the rest are tiles")
+               "music and the batteries are widgets, the calendar a card, and no shortcut tile shares the page")
+        suite.expect(NotchSupport.widgetScreens([.batteries, .volume, .calendar, .timer, .music])
+                     == [[.calendar], [.batteries, .music]],
+               "the calendar's hours have the first screen and the smaller widgets share the next, in list order")
+        suite.expect(NotchSupport.widgetScreens([.music, .timer]) == [[.music]]
+                     && NotchSupport.widgetScreens([.calendar]) == [[.calendar]]
+                     && NotchSupport.widgetScreens([.timer, .volume]).isEmpty,
+               "a screen with nothing on it is left out rather than shown empty")
     }
 
     /// Events chosen from their menu in the island, with the countdown for

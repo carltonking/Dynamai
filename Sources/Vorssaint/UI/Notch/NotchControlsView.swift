@@ -20,10 +20,9 @@ struct NotchControlsView: View {
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
-        let shortcuts = NotchSupport.controlShortcuts(items)
         let layout = NotchLayout.controls(hasCards: NotchSupport.controlsHaveCards(items), levelRow: !belowLevels.isEmpty,
-                                          shortcutCount: shortcuts.count, width: size.width, height: size.height)
-        if items.isEmpty {
+                                          shortcutCount: 0, width: size.width, height: size.height)
+        if levels.isEmpty && !NotchSupport.controlsHaveCards(items) {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
         } else {
             VStack(spacing: NotchLayout.rowSpacing) {
@@ -32,13 +31,6 @@ struct NotchControlsView: View {
                 }
                 if layout.cardRow > 0 {
                     NotchControlCards(service: service, items: items, height: layout.cardRow)
-                }
-                if layout.shortcutRows > 0 {
-                    NotchRail(items: shortcuts, rows: layout.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
-                              width: size.width, spacing: NotchLayout.shortcutSpacing,
-                              leastSpacing: NotchLayout.shortcutLeastSpacing, rowSpacing: layout.shortcutRowSpacing) { item in
-                        shortcut(item)
-                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -89,32 +81,6 @@ struct NotchControlsView: View {
             .accessibilityLabel(FeatureStrings.notch(l10n.language).brightness)
         }
         .frame(height: 28)
-    }
-
-    @ViewBuilder private func shortcut(_ item: NotchControlItem) -> some View {
-        switch item {
-        case .keepAwake: NotchAwakeButton()
-        case .microphone: NotchMicButton()
-        case .screenshot:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {
-                service.perform { ScreenshotService.shared.capture() }
-            }
-        case .recording: NotchRecorderButton(service: service)
-        case .speedTest:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.showMetric(.network) }
-        case .panel:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.openAppPanel() }
-        case .mixer:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.select(.mixer) }
-        case .commandBar:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
-        case .scratchpad:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n), usesObsidianMark: true,
-                            action: service.openScratchpad)
-        case .timer: NotchTimerTile(service: service)
-        // The card row draws these, not the rail.
-        case .volume, .brightness, .keyboardLight, .music, .calendar, .batteries: EmptyView()
-        }
     }
 }
 
@@ -491,78 +457,5 @@ struct NotchActionTile: View {
     private func readingTitle(_ text: String) -> some View {
         Text(text).font(.system(size: 11, weight: .medium))
             .foregroundStyle(.white.opacity(0.7))
-    }
-}
-
-/// A running timer, focus cycle or stopwatch keeps its clock on the tile:
-/// opening the island covers the reading the closed island showed, and a
-/// countdown hidden from the closed island can still be read here.
-private struct NotchTimerTile: View {
-    let service: NotchService
-    @ObservedObject private var timer = NotchTimerService.shared
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        if timer.session.isRunning {
-            TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
-                for: timer.session, at: timer.now)), by: 1)) { _ in tile }
-        } else {
-            tile
-        }
-    }
-
-    private var tile: some View {
-        let session = timer.session
-        let active = session.hasSession
-        return NotchActionTile(
-            symbol: active ? symbol(session) : NotchControlItem.timer.symbol,
-            title: active ? FeatureStrings.notchActivities(l10n.language).phase(session.phase)
-                : NotchControlItem.timer.title(l10n),
-            reading: active ? NotchTimerSupport.clockText(for: session, at: timer.now) : nil,
-            readingCountsDown: !session.countsUp,
-            // A long phase name, such as a Russian short break, would be cut
-            // off on a narrow tile; the module's own title stands in.
-            compactTitle: active ? NotchControlItem.timer.title(l10n) : nil,
-            active: active, accent: .timer) { service.select(.timer) }
-    }
-
-    /// The compact strip's marks, without the circle the tile already draws.
-    private func symbol(_ session: NotchTimerSession) -> String {
-        if session.completed { return "checkmark" }
-        if session.isPaused { return "pause.fill" }
-        return session.countsUp ? "stopwatch" : "timer"
-    }
-}
-
-private struct NotchAwakeButton: View {
-    @ObservedObject private var service = KeepAwakeManager.shared
-    @ObservedObject private var l10n = L10n.shared
-    var body: some View {
-        NotchActionTile(symbol: service.isActive ? "cup.and.saucer.fill" : "cup.and.saucer",
-                        title: l10n.s.keepAwakeTitle, active: service.isActive,
-                        accent: .awake, action: service.toggle)
-    }
-}
-
-private struct NotchMicButton: View {
-    @ObservedObject private var service = MicMuteService.shared
-    @ObservedObject private var l10n = L10n.shared
-    var body: some View {
-        NotchActionTile(symbol: service.isMuted ? "mic.slash.fill" : "mic.fill",
-                        title: service.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                        active: service.isMuted, accent: .alert, action: service.toggle)
-    }
-}
-
-private struct NotchRecorderButton: View {
-    let service: NotchService
-    @ObservedObject private var recorder = ScreenRecorderService.shared
-    @ObservedObject private var l10n = L10n.shared
-    var body: some View {
-        NotchActionTile(symbol: recorder.isRecording ? "stop.circle.fill" : "record.circle",
-                        title: FeatureStrings.recorder(l10n.language).pageTitle,
-                        active: recorder.isRecording, accent: .alert) {
-            service.perform { recorder.toggle() }
-        }
     }
 }

@@ -717,10 +717,12 @@ struct NotchMusicTimeline: View {
     }
 }
 
-/// Music as a widget in the Controls page's stack: the cover on top, the
-/// song and artist under it and the transport at the bottom, as the square
-/// widgets on an iPhone lay it out. With nothing playing the cover opens
-/// the music app, as the wide card did.
+/// Music as a widget on the Controls page. Square, the cover is on top with
+/// the song, the artist and the transport under it, as the small widgets on
+/// an iPhone lay it out; wider than tall, as it is beside the batteries, the
+/// cover takes the left and the song, its progress and the transport stack
+/// on the right, as the medium widget does. With nothing playing the cover
+/// opens the music app.
 struct NotchMusicWidget: View {
     @ObservedObject var notch: NotchService
     let size: CGSize
@@ -731,53 +733,91 @@ struct NotchMusicWidget: View {
     private var isIdle: Bool { !preview && music.playback == nil && !music.awaitingPlayback }
 
     var body: some View {
+        if size.width > size.height * 1.25 { wide } else { square }
+    }
+
+    private var wide: some View {
+        let player = isIdle ? NotchPreferredPlayer.current() : nil
+        let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
+        // The cover is as tall as the card allows and never takes more than
+        // half its width, so the transport keeps room for its three buttons.
+        let cover = max(36, min(size.height - 28, (size.width - 36) * 0.5))
+        return HStack(spacing: 14) {
+            coverButton(size: cover, player: player, openTitle: openTitle)
+            VStack(spacing: 8) {
+                Spacer(minLength: 0)
+                titles(height: 34, titleSize: 14)
+                Spacer(minLength: 0)
+                if let playback = music.playback {
+                    NotchMusicTimeline(playback: playback, service: music)
+                }
+                transport(player: player, openTitle: openTitle)
+                    .frame(height: 36)
+            }
+            .frame(maxWidth: .infinity, maxHeight: cover)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(width: size.width, height: size.height)
+        .onAppear { if !preview { music.refreshAutomation() } }
+    }
+
+    private var square: some View {
         let player = isIdle ? NotchPreferredPlayer.current() : nil
         let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
         // The cover gives way first, so the titles and transport always fit.
         let transportHeight: CGFloat = 36
         let titlesHeight: CGFloat = 32
         let cover = max(36, min(size.width - 40, size.height - transportHeight - titlesHeight - 30))
-        VStack(spacing: 6) {
-            Button {
-                if isIdle, NotchPreferredPlayer.open() { return }
-                notch.select(.music)
-            } label: {
-                NotchArtwork(image: music.artwork, size: cover, source: music.playback?.track)
-            }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-            .accessibilityLabel(player != nil ? openTitle : text.mediaNowPlaying)
-            .help(player != nil ? openTitle : text.mediaNowPlaying)
-
-            Button { notch.select(.music) } label: {
-                VStack(spacing: 1) {
-                    Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
-                         : music.playback?.track.artist ?? music.playback?.track.album ?? " ")
-                        .font(.system(size: 11))
-                        .foregroundStyle(music.commandFailed ? .orange : .secondary)
-                }
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .frame(height: titlesHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Group {
-                if let playback = music.playback {
-                    NotchMusicTransport(playback: playback, compact: true)
-                } else if player != nil {
-                    NotchMusicIdleTransport(compact: true, openTitle: openTitle)
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(height: transportHeight)
+        return VStack(spacing: 6) {
+            coverButton(size: cover, player: player, openTitle: openTitle)
+            titles(height: titlesHeight, titleSize: 13)
+            transport(player: player, openTitle: openTitle)
+                .frame(height: transportHeight)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(width: size.width, height: size.height)
         .onAppear { if !preview { music.refreshAutomation() } }
+    }
+
+    private func coverButton(size cover: CGFloat, player: String?, openTitle: String) -> some View {
+        Button {
+            if isIdle, NotchPreferredPlayer.open() { return }
+            notch.select(.music)
+        } label: {
+            NotchArtwork(image: music.artwork, size: cover, source: music.playback?.track)
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+        .accessibilityLabel(player != nil ? openTitle : text.mediaNowPlaying)
+        .help(player != nil ? openTitle : text.mediaNowPlaying)
+    }
+
+    private func titles(height: CGFloat, titleSize: CGFloat) -> some View {
+        Button { notch.select(.music) } label: {
+            VStack(spacing: 1) {
+                Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
+                    .font(.system(size: titleSize, weight: .semibold))
+                Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
+                     : music.playback?.track.artist ?? music.playback?.track.album ?? " ")
+                    .font(.system(size: titleSize - 2))
+                    .foregroundStyle(music.commandFailed ? .orange : .secondary)
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder private func transport(player: String?, openTitle: String) -> some View {
+        if let playback = music.playback {
+            NotchMusicTransport(playback: playback, compact: true)
+        } else if player != nil {
+            NotchMusicIdleTransport(compact: true, openTitle: openTitle)
+        } else {
+            Color.clear
+        }
     }
 }

@@ -1458,6 +1458,14 @@ final class NotchService: ObservableObject {
         if !expanded || selected != .calendar || showingSections || showingAppPanel { calendar.revealing = nil }
     }
 
+    /// Opens the Calendar page on one event, from the Controls page's hours.
+    func openCalendarEvent(_ id: String) {
+        let calendar = NotchCalendarService.shared
+        calendar.revealing = id
+        select(.calendar)
+        if !expanded || selected != .calendar { calendar.revealing = nil }
+    }
+
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }

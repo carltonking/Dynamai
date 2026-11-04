@@ -1076,7 +1076,9 @@ struct NotchSettings: View {
         let stored = controlOrder.split(separator: ",").compactMap { NotchControlItem(rawValue: String($0)) }
         var seen = Set<NotchControlItem>()
         return (stored + NotchControlItem.allCases).filter {
-            !$0.isLevel && $0 != .music && seen.insert($0).inserted
+            // Only the widget screens remain on the Controls page; music
+            // has its card in the row above.
+            $0.isCard && $0 != .music && seen.insert($0).inserted
         }
     }
 

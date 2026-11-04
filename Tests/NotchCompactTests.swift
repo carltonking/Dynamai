@@ -750,8 +750,9 @@ enum NotchCompactTests {
                              && layout.height >= page.service.contentSize.height,
                              "\(module) keeps the chosen width and exposes any vertically overflowing content")
                 if module == .controls {
-                    // Playback keeps the card row; the levels sit in the top row.
-                    let required = NotchLayout.controls(hasCards: page.controls.contains(.music), shortcutCount: 1,
+                    // Playback keeps the card row; the levels sit in the top
+                    // row, and no shortcut tile shares the page.
+                    let required = NotchLayout.controls(hasCards: page.controls.contains(.music), shortcutCount: 0,
                                                         width: layout.width, height: layout.height)
                     suite.expect(required.height <= layout.height, "home buttons fit their scrollable layout at menu height \(bar)")
                 } else if module == .timer {
