@@ -24,30 +24,34 @@ sign_installed_bundle() { signed+=("$1"); }
 for DEV in 1 0; do
     stopped=()
     signed=()
-    for name in Vorss 'Vorssaint Utils' Vorssaint 'Vorssaint (Developer)'; do
+    for name in Vorss 'Vorssaint Utils' Vorssaint 'Vorssaint (Developer)' Dynamai 'Dynamai (Developer)'; do
         mkdir -p "$install_test_dir/Applications/$name.app"
         print original > "$install_test_dir/Applications/$name.app/content"
     done
     if (( DEV )); then
-        APP_NAME='Vorssaint (Developer)'
-        EXECUTABLE=VorssaintDeveloper
+        APP_NAME='Dynamai (Developer)'
+        EXECUTABLE=DynamaiDeveloper
+        PREVIOUS_EXECUTABLE=VorssaintDeveloper
     else
-        APP_NAME=Vorssaint
-        EXECUTABLE=Vorssaint
+        APP_NAME=Dynamai
+        EXECUTABLE=Dynamai
+        PREVIOUS_EXECUTABLE=Vorssaint
     fi
     source "$install_test_dir/install.zsh"
     [[ "$(cat "$install_test_dir/Applications/$APP_NAME.app/content")" == new ]]
     [[ "${signed[*]}" == "$install_test_dir/Applications/$APP_NAME.app" ]]
     if (( DEV )); then
-        [[ "${stopped[*]}" == VorssaintDeveloper ]]
-        for name in Vorss 'Vorssaint Utils' Vorssaint; do
+        [[ "${stopped[*]}" == 'DynamaiDeveloper VorssaintDeveloper' ]]
+        [[ ! -e "$install_test_dir/Applications/Vorssaint (Developer).app" ]]
+        for name in Vorss 'Vorssaint Utils' Vorssaint Dynamai; do
             [[ "$(cat "$install_test_dir/Applications/$name.app/content")" == original ]]
         done
     else
-        [[ "${stopped[*]}" == 'Vorssaint Vorss VorssaintUtils' ]]
-        [[ ! -e "$install_test_dir/Applications/Vorss.app" ]]
-        [[ ! -e "$install_test_dir/Applications/Vorssaint Utils.app" ]]
-        [[ "$(cat "$install_test_dir/Applications/Vorssaint (Developer).app/content")" == original ]]
+        [[ "${stopped[*]}" == 'Dynamai Vorssaint Vorss VorssaintUtils' ]]
+        for name in Vorss 'Vorssaint Utils' Vorssaint; do
+            [[ ! -e "$install_test_dir/Applications/$name.app" ]]
+        done
+        [[ "$(cat "$install_test_dir/Applications/Dynamai (Developer).app/content")" == original ]]
     fi
 done
 print 'DEVELOPER INSTALL ISOLATION TESTS OK'

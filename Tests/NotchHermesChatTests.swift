@@ -132,7 +132,7 @@ enum NotchHermesChatTests {
                      && initialize["method"] as? String == "initialize"
                      && params?["protocolVersion"] as? Int == HermesACPProtocol.protocolVersion,
                      "the handshake names the protocol revision the island speaks")
-        suite.expect(info?["name"] as? String == "Vorssaint" && info?["version"] as? String == "1.2.3",
+        suite.expect(info?["name"] as? String == "Dynamai" && info?["version"] as? String == "1.2.3",
                      "the handshake names the app and its version")
         // The island offers no editor services, so a tool that needs one is
         // the agent's to run itself.
@@ -436,7 +436,7 @@ enum NotchHermesChatTests {
         let service = source("Sources/Vorssaint/Services/Notch/NotchHermesChatService.swift")
         suite.expect(service.contains("case .vertus: return AppFeature.notchHermesChat")
                      && service.contains("case .vertus: return DefaultsKey.notchHermesChatEnabled")
-                     && service.contains("case .instinct: return AppFeature.notchInstinctChat")
+                     && service.contains("case .instinct, .messages: return AppFeature.notchInstinctChat")
                      && service.contains("case .instinct: return DefaultsKey.notchInstinctChatEnabled")
                      && service.contains("agent.feature.isAvailable")
                      && service.contains("UserDefaults.standard.bool(forKey: agent.enabledKey)")
@@ -473,8 +473,74 @@ enum NotchHermesChatTests {
                      "the hub and the island draw the same mark")
 
         let view = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
-        suite.expect(view.contains("case .hermesChat: NotchHermesChatView(size: pageSize)"),
-                     "opening the page shows the conversation")
+        let screen = source("Sources/Vorssaint/UI/Notch/NotchAgentChatScreen.swift")
+        suite.expect(view.contains("case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:\n                NotchAgentChatScreen(service: service, size: pageSize)")
+                     && screen.contains("case .instinctChat: NotchHermesChatView(size: size, chat: .instinct)")
+                     && screen.contains("case .siriChat: NotchSiriPage(size: size)")
+                     && screen.contains("NotchHermesChatView(size: size, chat: NotchHermesChatService.service(for: service.selected) ?? .shared)"),
+                     "every agent opens on the one chat screen, each still on its own page")
+
+        // The sections gallery shows the agents as one tile, at the first
+        // one's place, opening the agent used last.
+        let all: [NotchModule] = [.controls, .instinctChat, .music, .hermesChat, .siriChat]
+        suite.expect(NotchSupport.combiningAgentChats(all, last: nil) == [.controls, .instinctChat, .music]
+                     && NotchSupport.combiningAgentChats(all, last: .siriChat) == [.controls, .siriChat, .music],
+                     "the agents share one tile that stands for the agent used last")
+        suite.expect(NotchSupport.combiningAgentChats([.controls, .hermesChat], last: .siriChat) == [.controls, .hermesChat]
+                     && NotchSupport.combiningAgentChats([.controls, .music], last: .siriChat) == [.controls, .music],
+                     "an agent no longer on the island cannot be the tile, and no agents means no tile")
+
+        // The iMessage agents beside Instinct: each its own page, thread,
+        // history and preferences, worded as Instinct is under its own name.
+        let agents = NotchMessagesAgent.allCases
+        suite.expect(agents.map(\.name) == ["Sauna", "Rho", "Caddy", "Rene", "Iris", "Folk", "Maverick"]
+                     && agents.allSatisfy { $0.module.messagesAgent == $0 && $0.module.isAgentChat }
+                     && Set(agents.map(\.historyFile)).count == agents.count
+                     && !agents.map(\.historyFile).contains("instinct-chat.json"),
+                     "each iMessage agent has its own page and its own history")
+        let keys = NotchModule.allCases.map(\.shortcutKey)
+        suite.expect(Set(keys).count == keys.count && keys.allSatisfy { $0.count == 1 },
+                     "every page keeps an Option-Command letter of its own")
+        let preferenceKeys = agents.flatMap { [$0.enabledKey, $0.numberKey, $0.speakRepliesKey] }
+        suite.expect(Set(preferenceKeys).count == preferenceKeys.count
+                     && agents.allSatisfy { Defaults.registeredDefaults[$0.numberKey] as? String == "" }
+                     && agents.allSatisfy { SettingsBackupSupport.machineStateKeys.contains($0.numberKey) }
+                     && !preferenceKeys.contains(DefaultsKey.notchInstinctNumber),
+                     "each agent's number is its own, starts empty and never leaves this Mac in a backup")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+                         let words = FeatureStrings.notchInstinctChat(language).named("Rho")
+                         return [words.title, words.description, words.enable, words.number, words.numberHint,
+                                 words.placeholder, words.emptyTitle, words.reachedOut].allSatisfy { !$0.contains("Instinct") }
+                             && words.title == "Rho"
+                     },
+                     "an agent's page names it, never Instinct, in every language")
+        suite.expect(NotchAgentReplySupport.noticeName("maverick") == "MAVERICK"
+                     && NotchAgentReplySupport.noticeName("iris") == "IRIS",
+                     "an agent's reply notice names it in capitals, as VERTUS's and INSTINCT's do")
+        suite.expect(NotchAgentReplySupport.agent(forBannerTitle: "+1 (646) 555-0101", vertusNumber: nil, instinctNumber: nil,
+                                                  messagesNumbers: [.rho: "6465550101"]) == "rho"
+                     && NotchAgentReplySupport.agent(forBannerTitle: "Folk", vertusNumber: nil, instinctNumber: nil) == "folk"
+                     && NotchAgentReplySupport.agent(forBannerTitle: "Iris Smith", vertusNumber: nil, instinctNumber: nil) == nil,
+                     "a Messages banner from an agent's number or saved name is that agent's, and a namesake is not")
+
+        // Command and a number picks the agent at that place, read from the
+        // key's position: the top row and the keypad, never another key.
+        suite.expect(NotchSupport.agentChatShortcut(keyCode: 18) == 1 && NotchSupport.agentChatShortcut(keyCode: 25) == 9
+                     && NotchSupport.agentChatShortcut(keyCode: 84) == 2 && NotchSupport.agentChatShortcut(keyCode: 29) == nil
+                     && NotchSupport.agentChatShortcut(keyCode: 0) == nil,
+                     "Command-1 to Command-9 choose the sidebar's agents in their order")
+        // Dragging the sidebar moves the agents among their own places in the
+        // section order and leaves every other section where it was.
+        let saved: [NotchModule] = [.music, .siriChat, .controls, .hermesChat]
+        let moved = NotchSupport.reorderingAgentChats([.hermesChat, .siriChat], in: saved)
+        suite.expect(Array(moved.prefix(4)) == [.music, .hermesChat, .controls, .siriChat]
+                     && moved.count == NotchModule.allCases.count && Set(moved) == Set(NotchModule.allCases),
+                     "a dragged agent takes another agent's place and nothing else moves")
+        let fresh = NotchSupport.reorderingAgentChats([.siriChat, .instinctChat, .hermesChat], in: [])
+        let three: Set<NotchModule> = [.siriChat, .instinctChat, .hermesChat]
+        suite.expect(fresh.filter { three.contains($0) } == [.siriChat, .instinctChat, .hermesChat]
+                     && fresh.filter { !three.contains($0) } == NotchModule.allCases.filter { !three.contains($0) },
+                     "with no saved order the agents still move and the sections keep their usual places")
     }
 
     /// With the VERTUS hub installed the page is a hub client: a prompt names
@@ -1049,12 +1115,17 @@ enum NotchHermesChatTests {
                      "the watch follows the known thread after the last message, or the number before there is one")
 
         // Settings.
-        let commandShiftL = GlobalShortcut(keyCode: Int64(kVK_ANSI_L), modifiers: [.command, .shift])
-        suite.expect(GlobalShortcut.instinctChatDefault == commandShiftL
-                     && Defaults.registeredDefaults[DefaultsKey.notchInstinctShortcut] as? String
-                        == commandShiftL.storageValue
-                     && GlobalShortcut.instinctChatDefault != GlobalShortcut.vertusChatDefault,
-                     "Instinct opens with ⇧⌘L by default, apart from VERTUS's ⇧⌘K")
+        // One shortcut for every agent, ⇧⌘K, kept where VERTUS's was so a key
+        // chosen for it stays; the agents have no shortcut of their own.
+        let commandShiftK = GlobalShortcut(keyCode: Int64(kVK_ANSI_K), modifiers: [.command, .shift])
+        suite.expect(GlobalShortcut.agentChatDefault == commandShiftK
+                     && GlobalShortcutRole.agentChat.storageKey == DefaultsKey.notchHermesChatShortcut
+                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatShortcut] as? String
+                        == commandShiftK.storageValue
+                     && GlobalShortcutRole.agentChat.feature == .notch
+                     && Defaults.registeredDefaults["notchInstinctShortcut"] == nil
+                     && Defaults.registeredDefaults["notchSiriShortcut"] == nil,
+                     "the agents share ⇧⌘K and Instinct and Siri keep no shortcut of their own")
         suite.expect(SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.notchInstinctNumber),
                      "Instinct's number never leaves this Mac in a settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchInstinctChatEnabled] as? Bool == false

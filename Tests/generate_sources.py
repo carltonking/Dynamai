@@ -881,8 +881,7 @@ def main():
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     write("NotchPanel.swift", "import AppKit\n"
-          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:")
-          + declaration("Sources/Vorssaint/Services/Notch/NotchFieldEditor.swift", "final class NotchFieldEditor:"))
+          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
     write("QuickTogglesAlert.swift", "import AppKit\nextension QuickTogglesAlertTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "    func emptyTrash()")
           + "}\n}\n")
@@ -952,6 +951,7 @@ def main():
           + declaration("Sources/Vorssaint/UI/PlainTextEditor.swift", "struct PlainTextEditor:")
               .replace("        private func moveLine(", "        func moveLine(", 1)
           + declaration(scratchpad_view, "struct NotchScratchpadView:")
+          + declaration(scratchpad_view, "struct NotchScratchpadTitleField:")
           + "".join(declaration(scratchpad_reading, prefix) for prefix in [
               "struct MarkdownPreview:", "final class TaskBoxAttachment:", "final class TaskPreviewTextView:"])
           + "".join(declaration("Sources/Vorssaint/UI/Scratchpad/ScratchpadLiveEditor.swift", prefix) for prefix in [
@@ -1279,6 +1279,8 @@ def main():
           + declaration(notch, "    private var regularPage:")
           + declaration(notch, "    func showHermesChat(")
           + declaration(notch, "    func showInstinctChat(")
+          + declaration(notch, "    func showSiriChat(")
+          + declaration(notch, "    func showMuseChat(")
           + declaration(notch, "    private func showAgentChat(").replace("private func", "func", 1)
           + declaration(notch, "    private func syncShortcut()").replace("private func", "func", 1)
               .replace("NotchSupport.holdsShortcut()", "NotchSupport.holdsShortcut(in: ReviewDefaults.current)")

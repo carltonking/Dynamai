@@ -1,27 +1,27 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaint 使用自動化來移動檔案、將項目移至垃圾桶、開啟要求的指令，以及控制媒體 App 的播放。";
+"NSAppleEventsUsageDescription" = "Dynamai 使用自動化來移動檔案、將項目移至垃圾桶、開啟要求的指令，以及控制媒體 App 的播放。SIRI 也會在你要求時，用它在「郵件」中閱讀、撰寫和傳送電子郵件。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint 使用各個 App 的音訊，用來在混音器中調整它們的音量、驅動 Dynamic Island 的音樂音柱，以及在你開始的螢幕錄製中加入 Mac 的聲音。不會有任何資料離開你的 Mac。";
+"NSAudioCaptureUsageDescription" = "Dynamai 使用各個 App 的音訊，用來在混音器中調整它們的音量、驅動 Dynamic Island 的音樂音柱，以及在你開始的螢幕錄製中加入 Mac 的聲音。不會有任何資料離開你的 Mac。";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint 僅使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";
+"NSBluetoothAlwaysUsageDescription" = "Dynamai 僅使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint 只會在你為螢幕錄製開啟麥克風時錄音。除非你選擇建立暫時連結，否則音訊只會保留在 Mac 上。在動態島中向 VERTUS 聽寫訊息時也會聆聽。";
+"NSMicrophoneUsageDescription" = "Dynamai 只會在你為螢幕錄製開啟麥克風時錄音。除非你選擇建立暫時連結，否則音訊只會保留在 Mac 上。在動態島中向 VERTUS 聽寫訊息時也會聆聽。";
 
 /* macOS Speech Recognition permission prompt. */
-"NSSpeechRecognitionUsageDescription" = "只有在你於動態島中向 VERTUS 聽寫訊息時，Vorssaint 才會把你說的話轉成文字。若這台 Mac 支援，辨識會在本機進行；否則由 Apple 處理音訊。";
+"NSSpeechRecognitionUsageDescription" = "只有在你於動態島中向 VERTUS 聽寫訊息時，Dynamai 才會把你說的話轉成文字。若這台 Mac 支援，辨識會在本機進行；否則由 Apple 處理音訊。";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaint 只在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
+"NSCameraUsageDescription" = "Dynamai 只在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaint 檢查下載項目中的本機中繼資料，只檢視、整理或移至垃圾桶你選擇的已確認 WhatsApp 檔案。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
+"NSDownloadsFolderUsageDescription" = "Dynamai 檢查下載項目中的本機中繼資料，只檢視、整理或移至垃圾桶你選擇的已確認 WhatsApp 檔案。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
-"NSDocumentsFolderUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
-"NSNetworkVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
-"NSRemovableVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
+"NSDesktopFolderUsageDescription" = "Dynamai 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
+"NSDocumentsFolderUsageDescription" = "Dynamai 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
+"NSNetworkVolumesUsageDescription" = "Dynamai 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
+"NSRemovableVolumesUsageDescription" = "Dynamai 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。如果你將截圖儲存在這裡，清理功能也會尋找被遺忘的截圖。";
 "NSCalendarsFullAccessUsageDescription" = "在螢幕頂部顯示即將到來的行程。行事曆行程只會保留在這部 Mac 上。";

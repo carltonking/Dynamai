@@ -99,7 +99,7 @@ enum SettingsBackupSupport {
     /// anything an update flow owns. Clipboard entries and shelf items stay
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
-    static let machineStateKeys: Set<String> = [
+    static let machineStateKeys: Set<String> = Set<String>([
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         // Codex homes are folders on this Mac whose sign-in the cards use,
@@ -194,7 +194,7 @@ enum SettingsBackupSupport {
         // Whom this person texts is private, and one Mac's Messages thread.
         DefaultsKey.notchInstinctNumber,
         DefaultsKey.notchHermesChatNumber,
-    ]
+    ]).union(NotchMessagesAgent.machineStateKeys)
 
     /// The file's content: an envelope with the format version, the app
     /// version that wrote it, and the filtered settings.

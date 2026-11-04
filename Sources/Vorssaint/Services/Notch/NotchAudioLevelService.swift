@@ -290,7 +290,7 @@ private final class NotchAudioLevelReader {
         guard !objects.isEmpty else { return false }
         tapped = objects
         let description = CATapDescription(stereoMixdownOfProcesses: objects)
-        description.name = "Vorssaint Island Levels"
+        description.name = MicMuteSupport.islandLevelsDeviceName
         description.isPrivate = true
         description.muteBehavior = .unmuted
         var tapID = AudioObjectID(0)
@@ -331,7 +331,7 @@ private final class NotchAudioLevelReader {
     private func buildPipeline() -> Bool {
         guard aggregateID == 0, tapID != 0, let hostUID = Self.hostDeviceUID() else { return false }
         let aggregate: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Vorssaint Island Levels",
+            kAudioAggregateDeviceNameKey: MicMuteSupport.islandLevelsDeviceName,
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceMainSubDeviceKey: hostUID,

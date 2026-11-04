@@ -58,7 +58,7 @@ enum FeedbackError: Error {
 final class FeedbackService {
     static let shared = FeedbackService()
 
-    private let endpoint = URL(string: "https://screenshots.vorssaint.com/v1/feedback")!
+    private let endpoint = AppInfo.feedbackEndpoint
     private let session: URLSession
     private let encoder = JSONEncoder()
 
@@ -89,6 +89,7 @@ final class FeedbackService {
         ))
         guard body.count <= 8 * 1_024 else { throw FeedbackError.rejected }
 
+        guard let endpoint else { throw FeedbackError.unavailable }
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.httpBody = body

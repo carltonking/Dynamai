@@ -260,7 +260,103 @@ enum FeatureCatalogTests {
                && leakedEvents.isEmpty
                && passThroughReturns == 2
                && cleaningCode.contains("if handleMouseButton(type: type, event: event)"),
-               "the cleaning tap swallows locked input while mouse events and disabled-session recovery pass through: \(leakedEvents)")
+               "the cleaning tap swallows locked input while pre-lock releases and disabled-session recovery pass through: \(leakedEvents)")
+        // The trackpad is locked too: pointer motion and drags are in the tap's
+        // mask (so they reach the swallowing return), a press under the lock
+        // never passes, and only a release whose press predates the lock does.
+        for type in [".mouseMoved,", ".leftMouseDragged,", ".rightMouseDragged,", ".otherMouseDragged,"] {
+            suite.expect(cleaningCode.contains(type), "the cleaning tap locks \(type.dropLast())")
+        }
+        suite.expect(cleaningCode.contains("mouseReleaseGate.buttonDown(button)\n            return false")
+                && cleaningCode.contains("return !pressedUnderLock"),
+               "the cleaning tap swallows clicks and passes only releases of pre-lock presses")
+        // A cloth on the trackpad must not be able to click its way out.
+        let cleaningOverlaySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/CleaningMode/CleaningOverlayView.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!cleaningOverlaySource.isEmpty
+                && !cleaningOverlaySource.contains("Button(")
+                && !cleaningCode.contains("acceptsFirstMouse"),
+               "the cleaning overlay offers nothing to click; Escape five times is the only unlock")
+
+        // Dropping motion events does not hold the cursor still on its own:
+        // the lock pins it where it was and releases it on every teardown.
+        suite.expect(cleaningCode.contains("holdCursorInPlace()\n            return nil")
+                && cleaningCode.contains("CGWarpMouseCursorPosition(pinnedCursorLocation)")
+                && cleaningCode.contains("removeTap()\n        unpinCursor()"),
+               "the cleaning lock pins the cursor and unpins it on teardown")
+
+        // The lock badge turns red at the first blocked touch and stays red
+        // until the unlock, counting touches rather than events.
+        var tally = CleaningBlockedInputTally()
+        let gap = CleaningBlockedInputTally.touchGap
+        suite.expect(!tally.isLit && tally.count == 0, "a fresh lock shows no touches")
+        tally.registerKeyPress()
+        tally.registerKeyPress()
+        suite.expect(tally.isLit && tally.count == 2, "every blocked key press counts and lights the badge")
+        for step in 0..<200 {
+            tally.registerPointerEvent(at: 10 + Double(step) * 0.01, isClick: false)
+        }
+        suite.expect(tally.count == 3, "one finger sliding on the trackpad is one touch, however many events")
+        tally.registerPointerEvent(at: 12.1, isClick: true)
+        suite.expect(tally.count == 3, "clicking the touch already counted is the same contact")
+        tally.registerPointerEvent(at: 12.2, isClick: true)
+        suite.expect(tally.count == 4, "a second click in one touch counts again")
+        tally.registerPointerEvent(at: 12.2 + gap + 0.01, isClick: false)
+        suite.expect(tally.count == 5, "touching again after the pointer went quiet is a new touch")
+        suite.expect(tally.isLit, "the badge stays red long after the last touch")
+        tally.reset()
+        suite.expect(!tally.isLit && tally.count == 0, "unlocking clears the count")
+        tally.registerPointerEvent(at: 0, isClick: false)
+        suite.expect(tally.count == 1, "the first touch after a reset counts even at an early clock time")
+
+        let shift = CGEventFlags.maskShift.rawValue | 0x2
+        suite.expect(CleaningBlockedInputTally.isModifierPress(keyCode: 56, previousFlags: 0, flags: shift),
+               "pressing a modifier counts")
+        suite.expect(!CleaningBlockedInputTally.isModifierPress(keyCode: 56, previousFlags: shift, flags: 0),
+               "releasing a modifier does not count again")
+        suite.expect(CleaningBlockedInputTally.isModifierPress(keyCode: 60, previousFlags: shift,
+                                                               flags: shift | 0x4),
+               "the second Shift counts while the first is held")
+        suite.expect(CleaningBlockedInputTally.isModifierPress(
+                        keyCode: CleaningBlockedInputTally.capsLockKeyCode,
+                        previousFlags: CGEventFlags.maskAlphaShift.rawValue, flags: 0),
+               "Caps Lock counts when its press turns it off")
+        suite.expect(CleaningBlockedInputTally.label(for: 42) == "42"
+                && CleaningBlockedInputTally.label(for: 999) == "999"
+                && CleaningBlockedInputTally.label(for: 1_000) == "999+",
+               "the badge prints the count and caps it at 999+")
+        suite.expect(cleaningCode.contains("guard event.getIntegerValueField(.keyboardEventKeycode) != Self.escapeKeyCode")
+                && cleaningCode.contains("noteBlockedInput(type: type, event: event)"),
+               "every key but Escape counts; Escape presses toward the unlock do not")
+        suite.expect(cleaningOverlaySource.contains("manager.isBlockingInput ? Color.red : Color.white")
+                && cleaningOverlaySource.contains("CleaningBlockedInputTally.label(for: manager.blockedInputCount)")
+                && cleaningOverlaySource.contains(".foregroundStyle(Color.black)"),
+               "the lock badge turns red once input is blocked and shows the count in black")
+
+        // The start shortcut: Option-3, on by default, gated on its own toggle
+        // and the feature, and it starts (never toggles) the lock.
+        suite.expect(GlobalShortcut.cleaningModeDefault
+                == GlobalShortcut(keyCode: 20, modifiers: [.option])
+                && GlobalShortcut.cleaningModeDefault.isValid,
+               "the cleaning mode shortcut defaults to Option-3")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcutEnabled] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcut] as? String == "option:20",
+               "the cleaning mode shortcut ships on as Option-3")
+        suite.expect(GlobalShortcutRole.cleaningMode.requiredEnableKeys == [DefaultsKey.cleaningModeShortcutEnabled]
+                && GlobalShortcutRole.cleaningMode.feature == .cleaningMode,
+               "the cleaning mode shortcut role gates on its toggle and feature")
+        suite.expect(GlobalShortcutRole.conflict(for: .cleaningModeDefault, excluding: .cleaningMode,
+                                                 isOn: { _ in true }, isAvailable: { _ in true },
+                                                 radialMenuShortcuts: { [] }) == nil,
+               "Option-3 is no other feature's default shortcut")
+        suite.expect(cleaningCode.contains("hotkey.onPress = { [weak self] in self?.activateFromShortcut() }")
+                && cleaningCode.contains("guard isActive, AppFeature.keepAwake.isAvailable, !KeepAwakeManager.shared.isActive")
+                && cleaningCode.contains("KeepAwakeManager.shared.startLastPick()")
+                && cleaningCode.contains("startedKeepAwake = KeepAwakeManager.shared.isActive")
+                && cleaningCode.contains("if startedKeepAwake {")
+                && !cleaningCode.contains("KeepAwakeManager.shared.toggle()"),
+               "the cleaning mode shortcut starts the lock and Keep Awake; unlocking ends only the Keep Awake it started")
         suite.expect(cleaningCode.contains("self.deactivate(restoreSuspendedFeatures: false)")
                 && cleaningCode.contains("shouldRestoreSuspendedFeaturesOnSessionReturn = true")
                 && cleaningCode.contains("self.resumeSuspendedFeatures()")
@@ -386,7 +482,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
+        suite.expect(AppFeature.allCases.count == 81, "feature catalog has 81 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +495,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchHermesChat", "notchInstinctChat", "notchMascot",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchHermesChat", "notchInstinctChat", "notchSiriChat", "notchMuseChat", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -689,7 +785,7 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
             .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-            .notchHermesChat, .notchInstinctChat, .notchMascot,
+            .notchHermesChat, .notchInstinctChat, .notchSiriChat, .notchMuseChat, .notchMascot,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
@@ -697,9 +793,9 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.notch.initialInstallGroup
                         == AppFeature.features(in: .dynamicIsland)
                             .filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchHermesChat
-                                && $0 != .notchInstinctChat }
+                                && $0 != .notchInstinctChat && $0 != .notchSiriChat && $0 != .notchMuseChat }
                      && AppFeature.mixer.initialInstallGroup == [.mixer],
-                     "choosing the island keeps Agents, Hermes Chat, Instinct and the companion as separate installs")
+                     "choosing the island keeps Agents, Hermes Chat, Instinct, Siri and the companion as separate installs")
         suite.expect(AppFeature.dynamicIslandExtensions.contains(.notchMascot)
                         && !AppFeature.notch.initialInstallGroup.contains(.notchMascot)
                         && AppFeature.notchMascot.permissions.isEmpty

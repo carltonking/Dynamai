@@ -20,8 +20,8 @@ struct NotchControlsView: View {
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
-        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
-        let layout = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
+        let shortcuts = NotchSupport.controlShortcuts(items)
+        let layout = NotchLayout.controls(hasCards: NotchSupport.controlsHaveCards(items), levelRow: !belowLevels.isEmpty,
                                           shortcutCount: shortcuts.count, width: size.width, height: size.height)
         if items.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
@@ -31,7 +31,7 @@ struct NotchControlsView: View {
                     NotchLevelRow(levels: belowLevels) { level($0) }
                 }
                 if layout.cardRow > 0 {
-                    NotchMusicControlsView(notch: service, height: layout.cardRow).frame(height: layout.cardRow)
+                    NotchControlCards(service: service, items: items, height: layout.cardRow)
                 }
                 if layout.shortcutRows > 0 {
                     NotchRail(items: shortcuts, rows: layout.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
@@ -112,8 +112,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), usesObsidianMark: true,
                             action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
-        case .calendar: NotchCalendarTile(service: service)
-        case .volume, .brightness, .keyboardLight, .music: EmptyView()
+        // The card row draws these, not the rail.
+        case .volume, .brightness, .keyboardLight, .music, .calendar, .batteries: EmptyView()
         }
     }
 }
@@ -136,6 +136,7 @@ extension NotchControlItem {
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)
+        case .batteries: return FeatureStrings.notch(l10n.language).batteriesWidget
         }
     }
 }
@@ -530,30 +531,6 @@ private struct NotchTimerTile: View {
         if session.completed { return "checkmark" }
         if session.isPaused { return "pause.fill" }
         return session.countsUp ? "stopwatch" : "timer"
-    }
-}
-
-/// The next appointment's start and title, so the week's agenda is a click
-/// away rather than the only way to see what comes next.
-private struct NotchCalendarTile: View {
-    let service: NotchService
-    @ObservedObject private var calendar = NotchCalendarService.shared
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        TimelineView(.everyMinute) { context in tile(now: context.date) }
-    }
-
-    private func tile(now: Date) -> some View {
-        let event = NotchCalendarSupport.tileEvent(calendar.events, now: now)
-        let title = event?.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return NotchActionTile(
-            symbol: NotchControlItem.calendar.symbol,
-            title: title.map { $0.isEmpty ? FeatureStrings.notchCalendar(l10n.language).untitled : $0 }
-                ?? NotchControlItem.calendar.title(l10n),
-            reading: event.map {
-                NotchCalendarSupport.tileStartText($0.start, now: now, locale: l10n.language.formattingLocale())
-            }) { service.select(.calendar) }
     }
 }
 

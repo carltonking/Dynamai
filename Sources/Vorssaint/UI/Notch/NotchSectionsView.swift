@@ -106,6 +106,9 @@ struct NotchSectionsView: View {
                 Group {
                     if module == .scratchpad {
                         ObsidianMark(width: 22)
+                    } else if module.isAgentChat {
+                        // One tile for every agent; it opens the one used last.
+                        Image(systemName: NotchModule.hermesChat.symbol)
                     } else {
                         Image(systemName: module.symbol)
                     }
@@ -113,7 +116,7 @@ struct NotchSectionsView: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(tint(for: module))
                     .frame(width: 25, height: 25)
-                Text(module.title(l10n.language))
+                Text(module.isAgentChat ? text.agentChat : module.title(l10n.language))
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)

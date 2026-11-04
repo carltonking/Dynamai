@@ -19,7 +19,8 @@ struct NotchNotice: Equatable {
     /// With the companion on, it takes the symbol's place in the notice and
     /// plays this, so the notice itself is its reaction.
     var mascot: NotchMascotReaction? = nil
-    /// VERTUS or Instinct finished writing ("vertus", "instinct"): the
+    /// VERTUS, Instinct, Siri or Muse finished writing ("vertus",
+    /// "instinct", "siri", "muse"): the
     /// notice is that agent's name, and a click opens its page.
     var chatAgent: String? = nil
     /// A banner that replaces one still on screen keeps at least its wings,
@@ -118,6 +119,13 @@ final class NotchService: ObservableObject {
     /// True when macOS refused the island's own shortcut, so Settings can say so.
     @Published private(set) var shortcutRegistrationFailed = false
     private let hotkey = QuickToolHotkey(id: 81)
+    /// ⇧⌘K by default: opens the agent at the top of the chat screen's
+    /// sidebar. One shortcut for every agent, however each one is set up.
+    private let agentHotkey = QuickToolHotkey(id: 82)
+    @Published private(set) var agentShortcutRegistrationFailed = false
+    /// ⇧⌘D by default: opens the calculator; a second press closes it.
+    private let calculatorHotkey = QuickToolHotkey(id: 83)
+    @Published private(set) var calculatorShortcutRegistrationFailed = false
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -127,7 +135,11 @@ final class NotchService: ObservableObject {
     @Published private(set) var captureControlsCollapsed = false
     @Published private(set) var captureSelectionInProgress = false
     @Published var pinned = false
-    @Published private(set) var selected: NotchModule = .controls
+    @Published private(set) var selected: NotchModule = .controls {
+        didSet { if selected.isAgentChat { lastAgentChat = selected } }
+    }
+    /// The agent the chat screen showed last, which its section tile opens.
+    private(set) var lastAgentChat: NotchModule?
     @Published private(set) var showingAppPanel = false
     @Published private(set) var showingSections = false
     @Published private(set) var sectionQuery = ""
@@ -835,10 +847,10 @@ final class NotchService: ObservableObject {
                           capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter(\.isLevel).count
-        let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
+        let shortcuts = NotchSupport.controlShortcuts(controls).count
         return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
                                      shortcutCount: shortcuts,
-                                     sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
+                                     sliderCount: sliders, controlsHaveCards: NotchSupport.controlsHaveCards(controls), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
                                      systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery,
                                                                                fans: SystemMonitor.shared.snapshot.fanSpeeds.count),
@@ -891,7 +903,7 @@ final class NotchService: ObservableObject {
     }
     /// A detail's title, the app panel's, or the island's own with no sections.
     var detailTitle: String {
-        if showingAppPanel { return "Vorssaint" }
+        if showingAppPanel { return AppInfo.name }
         let language = L10n.shared.language
         guard let metric = selectedMetric else { return FeatureStrings.notch(language).title }
         // The fan card opens Fan Control, so its page shares that title.
@@ -1113,6 +1125,8 @@ final class NotchService: ObservableObject {
             running = true
             installObservers()
         }
+        syncAgentShortcut()
+        syncCalculatorShortcut()
         syncShortcut()
         if !NotchTimerSupport.isEnabled() { NotchTimerService.shared.stop() }
         // A watch keeps reading while the island is away, as on the lock
@@ -1242,6 +1256,35 @@ final class NotchService: ObservableObject {
         if failed != shortcutRegistrationFailed { shortcutRegistrationFailed = failed }
     }
 
+    /// Held while the island and the shortcut are on and some agent can be
+    /// talked to; re-read on every defaults write, as the island's own is.
+    func syncAgentShortcut() {
+        agentHotkey.onPress = { [weak self] in self?.showTopAgentChat(toggle: true) }
+        let defaults = UserDefaults.standard
+        let enabled = NotchSupport.isEnabled() && defaults.bool(forKey: DefaultsKey.notchHermesChatShortcutEnabled)
+            && NotchSupport.modules().contains(where: \.isAgentChat) && !ShortcutCapture.isCapturing
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.notchHermesChatShortcut, fallback: .agentChatDefault)
+        let failed = !agentHotkey.sync(enabled: enabled, shortcut: shortcut, storageKey: DefaultsKey.notchHermesChatShortcut)
+        if failed != agentShortcutRegistrationFailed { agentShortcutRegistrationFailed = failed }
+    }
+
+    /// Held while the island and the shortcut are on and the page is shown.
+    func syncCalculatorShortcut() {
+        calculatorHotkey.onPress = { [weak self] in self?.showCalculator(toggle: true) }
+        let enabled = NotchSupport.isEnabled() && UserDefaults.standard.bool(forKey: DefaultsKey.notchCalculatorShortcutEnabled)
+            && NotchSupport.modules().contains(.calculator) && !ShortcutCapture.isCapturing
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.notchCalculatorShortcut, fallback: .calculatorDefault)
+        let failed = !calculatorHotkey.sync(enabled: enabled, shortcut: shortcut, storageKey: DefaultsKey.notchCalculatorShortcut)
+        if failed != calculatorShortcutRegistrationFailed { calculatorShortcutRegistrationFailed = failed }
+    }
+
+    /// Opens the calculator from its shortcut; a second press closes it.
+    func showCalculator(toggle: Bool = false) {
+        if toggle, expanded, selected == .calculator, selectedMetric == nil,
+           !showingAppPanel, !showingSections, !showingCommandBar { collapseFromShortcut(); return }
+        open(.calculator)
+    }
+
     private func refreshModules() {
         let updated = NotchSupport.modules()
         if modules != updated { modules = updated }
@@ -1257,6 +1300,8 @@ final class NotchService: ObservableObject {
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
+        agentHotkey.unregister()
+        calculatorHotkey.unregister()
         if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
@@ -1750,11 +1795,13 @@ final class NotchService: ObservableObject {
     }
 
     var filteredSections: [NotchModule] {
-        NotchSupport.filteredModules(modules, query: sectionQuery) { module in
+        let matches = NotchSupport.filteredModules(modules, query: sectionQuery) { module in
             let language = L10n.shared.language
             let music = module == .music ? FeatureStrings.notch(language).music : ""
-            return [module.title(language), module.rawValue, music].joined(separator: " ")
+            let chat = module.isAgentChat ? FeatureStrings.notch(language).agentChat : ""
+            return [module.title(language), module.rawValue, music, chat].joined(separator: " ")
         }
+        return NotchSupport.combiningAgentChats(matches, last: lastAgentChat)
     }
 
     func searchSections(_ query: String) {
@@ -1906,7 +1953,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
-            case .volume, .brightness, .keyboardLight: select(.controls)
+            case .volume, .brightness, .keyboardLight, .batteries: select(.controls)
             }
         }
     }
@@ -1914,6 +1961,17 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
+    }
+
+    /// The chat screen's sidebar, dragged into a new order. The agents keep
+    /// the island's section order between them, so Settings shows it too.
+    func reorderAgentChats(_ agents: [NotchModule]) {
+        let defaults = UserDefaults.standard
+        let stored = (defaults.string(forKey: DefaultsKey.notchModuleOrder) ?? "")
+            .split(separator: ",").compactMap { NotchModule(rawValue: String($0)) }
+        let order = NotchSupport.reorderingAgentChats(agents, in: stored)
+        defaults.set(order.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchModuleOrder)
+        refreshModules()
     }
 
     /// The pad lives in the island when its page is on; otherwise the
@@ -1960,14 +2018,33 @@ final class NotchService: ObservableObject {
         return true
     }
 
-    /// Opens the VERTUS chat page from its shortcut; a second press closes it.
+    /// The agent at the top of the sidebar, from the agents' shortcut. A
+    /// second press while any agent's conversation shows closes the island.
+    func showTopAgentChat(toggle: Bool = false) {
+        guard let top = modules.first(where: \.isAgentChat) else { return }
+        if toggle, expanded, selected.isAgentChat, selectedMetric == nil,
+           !showingAppPanel, !showingSections, !showingCommandBar { collapseFromShortcut(); return }
+        showAgentChat(top, toggle: false)
+    }
+
+    /// Opens the VERTUS chat page; a second press closes it.
     func showHermesChat(toggle: Bool = false) {
         showAgentChat(.hermesChat, toggle: toggle)
     }
 
-    /// Opens the Instinct chat page from its shortcut; a second press closes it.
+    /// Opens the Instinct chat page; a second press closes it.
     func showInstinctChat(toggle: Bool = false) {
         showAgentChat(.instinctChat, toggle: toggle)
+    }
+
+    /// Opens the Siri chat page; a second press closes it.
+    func showSiriChat(toggle: Bool = false) {
+        showAgentChat(.siriChat, toggle: toggle)
+    }
+
+    /// Opens the Muse chat page; a second press closes it.
+    func showMuseChat(toggle: Bool = false) {
+        showAgentChat(.museChat, toggle: toggle)
     }
 
     /// An agent's page, from its shortcut. From the regular island or the
@@ -2321,7 +2398,11 @@ final class NotchService: ObservableObject {
         switch page {
         case .hermesChat where modules.contains(.hermesChat): return .shared
         case .instinctChat where modules.contains(.instinctChat): return .instinct
-        default: return nil
+        case .siriChat where modules.contains(.siriChat): return .siri
+        case .museChat where modules.contains(.museChat): return .muse
+        default:
+            guard page.messagesAgent != nil, modules.contains(page) else { return nil }
+            return NotchHermesChatService.service(for: page)
         }
     }
 
@@ -2447,7 +2528,13 @@ final class NotchService: ObservableObject {
         guard !NotchSupport.opensOnlyFromShortcut() else { dismissNotice(); return }
         if let agent = selectedNotice.chatAgent {
             dismissNotice()
-            if agent == "instinct" { showInstinctChat() } else { showHermesChat() }
+            switch NotchHermesChatService.Agent(noticeName: agent) {
+            case .instinct: showInstinctChat()
+            case .siri: showSiriChat()
+            case .muse: showMuseChat()
+            case .messages(let agent): showAgentChat(agent.module, toggle: false)
+            case .vertus, nil: showHermesChat()
+            }
             return
         }
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
@@ -3546,9 +3633,6 @@ final class NotchService: ObservableObject {
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
         }
-        panel?.fieldDropBelongsToIsland = { [weak self] pasteboard in
-            self?.agentChatForDrop != nil && NotchAgentDropSupport.carriesAttachments(pasteboard)
-        }
         // An agent's page takes drops for its next message even without the shelf.
         if (modules.contains(.files) && AppFeature.shelf.isAvailable) || modules.contains(where: \.isAgentChat) {
             windowHost?.setFileDropActions(NotchFileDropActions(
@@ -3834,6 +3918,13 @@ final class NotchService: ObservableObject {
                 // opens its page in Settings, as an app's own settings do.
                 if modifiers == .command, event.charactersIgnoringModifiers == "," {
                     self.openSettings()
+                    return nil
+                }
+                // Command and a number picks that agent in the chat screen's sidebar.
+                if modifiers == .command, self.selected.isAgentChat, !self.showingAppPanel, !self.showingSections,
+                   let place = NotchSupport.agentChatShortcut(keyCode: event.keyCode) {
+                    let agents = self.modules.filter(\.isAgentChat)
+                    if place <= agents.count, agents[place - 1] != self.selected { self.select(agents[place - 1]) }
                     return nil
                 }
                 if modifiers == [.command, .option],
@@ -4187,7 +4278,10 @@ final class NotchService: ObservableObject {
                 let agent = NotchAgentReplySupport.agent(
                     forBannerTitle: item.content.title,
                     vertusNumber: defaults.string(forKey: DefaultsKey.notchHermesChatNumber),
-                    instinctNumber: defaults.string(forKey: DefaultsKey.notchInstinctNumber))
+                    instinctNumber: defaults.string(forKey: DefaultsKey.notchInstinctNumber),
+                    messagesNumbers: Dictionary(uniqueKeysWithValues: NotchMessagesAgent.allCases.compactMap { agent in
+                        defaults.string(forKey: agent.numberKey).map { (agent, $0) }
+                    }))
                 let notice = agent.map {
                     NotchNotice(event: .agents, title: NotchAgentReplySupport.noticeName($0), detail: "",
                                 symbol: "bubble.left.fill", chatAgent: $0)
@@ -4424,6 +4518,13 @@ final class NotchService: ObservableObject {
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         if needs, AppFeature.connectedDevices.isAvailable { detailNeeds.connectedDevices = true }
+        // The Controls page's Batteries widget lists the Mac's charge and
+        // every accessory's, so both are read while the page is up.
+        if expanded, selected == .controls, !showingAppPanel, !showingSections, !showingCommandBar,
+           NotchSupport.controls().contains(.batteries) {
+            detailNeeds.battery = true
+            detailNeeds.peripheralBattery = true
+        }
         SystemMonitor.shared.setNotchDetailNeeds(detailNeeds)
         if needs != notchNeedsMonitor {
             notchNeedsMonitor = needs

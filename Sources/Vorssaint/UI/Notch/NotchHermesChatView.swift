@@ -13,7 +13,6 @@ struct NotchHermesChatSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchHermesChatEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchHermesChatCliPath) private var cliPath = HermesACPSupport.defaultCommand
-    @AppStorage(DefaultsKey.notchHermesChatShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.notchHermesChatNumber) private var number = ""
     /// The number the open conversation was started with; editing it moves
     /// the page between the iMessage thread and VERTUS on this Mac.
@@ -76,12 +75,6 @@ struct NotchHermesChatSettingsControls: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if enabled {
-                Toggle(L10n.shared.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in chat.syncShortcut() }
-                ShortcutPreferenceRow(role: .vertusChat, isEnabled: shortcutEnabled) { chat.syncShortcut() }
-                if shortcutEnabled, chat.shortcutRegistrationFailed {
-                    Text(L10n.shared.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
-                }
                 status
             }
         }
@@ -484,7 +477,21 @@ struct NotchHermesChatView: View {
                             Permissions.shared.requestFullDiskAccess()
                         }
                     }
-                    NotchPillButton(title: text.retry, prominent: true) { chat.retry() }
+                    // Muse is reached through its app: the grant it needs,
+                    // or the app itself, is one click away. The page recovers
+                    // on its own once Muse can be read again.
+                    if case .muse(let problem) = failure {
+                        let words = FeatureStrings.notchMuseChat(l10n.language)
+                        if problem == .needsAccessibility {
+                            NotchPillButton(title: words.allowAccessibility, prominent: true) {
+                                Permissions.shared.requestAccessibility()
+                            }
+                        } else if problem != .notInstalled {
+                            NotchPillButton(title: words.openMuse, prominent: true) { chat.openMuseApp() }
+                        }
+                    } else {
+                        NotchPillButton(title: text.retry, prominent: true) { chat.retry() }
+                    }
                 }
             }
         } else if !enabled && !preview {
@@ -517,15 +524,18 @@ struct NotchHermesChatView: View {
             // The agent's own mark beside the pages button: which agent this
             // page talks to, at a glance.
             Group {
-                if chat.agent == .vertus {
-                    VertusWordmark(height: 13)
-                } else {
-                    InstinctWordmark(height: 13)
+                switch chat.agent {
+                case .vertus: VertusWordmark(height: 13)
+                case .instinct: InstinctWordmark(height: 13)
+                case .siri: SiriWordmark(height: 11)
+                case .muse: MessagesAgentWordmark(name: "MUSE", height: 13)
+                case .messages(let agent): MessagesAgentWordmark(name: agent.displayName, height: 13)
                 }
             }
             .foregroundStyle(.white.opacity(0.9))
             .help(text.title)
             .accessibilityLabel(text.title)
+
             if NotchMascotSupport.isEnabled() {
                 NotchMascotView(look: NotchMascotSupport.look(), mood: companionMood, size: 20,
                                 cue: .celebrate, cueID: chat.completedReplies - (cheeredReplies ?? chat.completedReplies))

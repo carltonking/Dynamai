@@ -14,7 +14,7 @@ enum HermesACPProtocol {
     /// The only protocol revision the island speaks. Hermes answers with the
     /// revision it will use, which is 1 for every build that ships ACP.
     static let protocolVersion = 1
-    static let clientName = "Vorssaint"
+    static let clientName = "Dynamai"
 
     // MARK: Requests
 
@@ -316,6 +316,21 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
     /// Files sent with the message, as Messages shows them in the thread.
     /// Optional so a history saved before they existed still reads.
     var attachments: [Attachment]?
+    /// What Siri showed with its answer beyond words: a weather card, a
+    /// result, a choice to confirm (Siri's page only). Optional so a history
+    /// saved before they existed still reads.
+    var cards: [Card]?
+
+    /// One of Siri's cards, as data the island draws itself: its words, its
+    /// symbol, the buttons on it, what a click on it opens, and the action
+    /// its buttons settle (an email waiting to be sent).
+    struct Card: Codable, Equatable, Hashable {
+        var lines: [String]
+        var symbol: String?
+        var buttons: [String]
+        var link: String? = nil
+        var action: String? = nil
+    }
 
     /// A file on this Mac: one chosen to send, or one Messages received.
     struct Attachment: Codable, Equatable, Hashable {
@@ -329,7 +344,8 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
     }
 
     init(id: UUID = UUID(), role: Role, text: String, date: Date = Date(), source: String? = nil,
-         reactions: [Reaction]? = nil, replyTo: UUID? = nil, attachments: [Attachment]? = nil) {
+         reactions: [Reaction]? = nil, replyTo: UUID? = nil, attachments: [Attachment]? = nil,
+         cards: [Card]? = nil) {
         self.id = id
         self.role = role
         self.text = text
@@ -338,12 +354,13 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
         self.reactions = reactions
         self.replyTo = replyTo
         self.attachments = attachments
+        self.cards = cards
     }
 
     /// The same message under another role, keeping everything it carries.
     func with(role: Role) -> NotchHermesChatMessage {
         NotchHermesChatMessage(id: id, role: role, text: text, date: date, source: source,
-                               reactions: reactions, replyTo: replyTo, attachments: attachments)
+                               reactions: reactions, replyTo: replyTo, attachments: attachments, cards: cards)
     }
 }
 
@@ -408,23 +425,34 @@ enum NotchAgentReplySupport {
         return words.isEmpty ? files : words + "\n\n" + files
     }
 
-    /// The name an agent's notice shows: VERTUS, INSTINCT.
+    /// The name an agent's notice shows: VERTUS, INSTINCT, SIRI, MUSE.
     static func noticeName(_ agent: String) -> String {
-        agent == "instinct" ? "INSTINCT" : "VERTUS"
+        switch agent {
+        case "instinct": return "INSTINCT"
+        case "siri": return "SIRI"
+        case "muse": return "MUSE"
+        default: return NotchMessagesAgent(rawValue: agent)?.displayName ?? "VERTUS"
+        }
     }
 
     /// Which agent a mirrored banner came from: one titled with VERTUS's or
     /// Instinct's number (Messages names the sender), or with its name.
-    static func agent(forBannerTitle title: String, vertusNumber: String?, instinctNumber: String?) -> String? {
+    /// `messagesNumbers` are the other iMessage agents' numbers, by agent.
+    static func agent(forBannerTitle title: String, vertusNumber: String?, instinctNumber: String?,
+                      messagesNumbers: [NotchMessagesAgent: String] = [:]) -> String? {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        for (agent, number) in [("instinct", instinctNumber), ("vertus", vertusNumber)] {
+        let others = NotchMessagesAgent.allCases.map { ($0.rawValue, messagesNumbers[$0]) }
+        for (agent, number) in [("instinct", instinctNumber), ("vertus", vertusNumber)] + others {
             if let number, !number.trimmingCharacters(in: .whitespaces).isEmpty,
                InstinctMessagesSupport.sameHandle(trimmed, number) { return agent }
         }
         let lowered = trimmed.lowercased()
         if lowered.contains("instinct") { return "instinct" }
         if lowered.contains("vertus") { return "vertus" }
+        // A contact saved under the agent's name: the whole title, so a
+        // person called Iris Smith is not mistaken for the agent.
+        if let named = NotchMessagesAgent.allCases.first(where: { $0.rawValue == lowered }) { return named.rawValue }
         return nil
     }
 

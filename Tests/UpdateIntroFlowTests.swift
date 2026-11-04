@@ -10,6 +10,9 @@ enum UpdateIntroFlowTests {
         static var version = "3.4.0"
         static var isBeta: Bool { version.contains("beta") }
         static var isDeveloperBuild = false
+        /// The flow is pinned with a support page to invite to; Dynamai has
+        /// none, which only ever skips the invitation.
+        static var hasSupportLinks = true
     }
     enum UserDefaults { static var standard: Foundation.UserDefaults! }
     enum DispatchQueue {

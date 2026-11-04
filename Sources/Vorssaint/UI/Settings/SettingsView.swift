@@ -735,7 +735,9 @@ struct AboutSettings: View {
                 aboutContent
             }
 
-            UpdatesView()
+            if AppInfo.updatesEnabled {
+                UpdatesView()
+            }
         }
         .formStyle(.grouped)
     }
@@ -779,7 +781,9 @@ struct AboutSettings: View {
                 Button(l10n.s.reviewHighlights) {
                     appDelegate()?.showUpdateHighlights(isReview: true)
                 }
-                Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
+                if let repository = AppInfo.repositoryURL {
+                    Link(l10n.s.viewOnGitHub, destination: repository)
+                }
             }
             Text(AppInfo.copyright)
                 .font(.caption2)
@@ -964,7 +968,7 @@ struct SupportSettings: View {
                 }
 
                 Button {
-                    openURL(AppInfo.coffeeURL)
+                    if let url = AppInfo.coffeeURL { openURL(url) }
                 } label: {
                     Label(l10n.s.donateButton, systemImage: "cup.and.saucer.fill")
                 }
@@ -984,7 +988,7 @@ struct SupportSettings: View {
                             .fixedSize(horizontal: false, vertical: true)
 
                         Button {
-                            openURL(AppInfo.repositoryURL)
+                            if let url = AppInfo.repositoryURL { openURL(url) }
                         } label: {
                             Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
                         }
@@ -1061,7 +1065,7 @@ struct SupportSettings: View {
 
     private var discordButton: some View {
         Button {
-            openURL(AppInfo.discordURL)
+            if let url = AppInfo.discordURL { openURL(url) }
         } label: {
             HStack(spacing: 8) {
                 DiscordMark(width: 19)
@@ -1075,7 +1079,7 @@ struct SupportSettings: View {
 
     private var socialButton: some View {
         Button {
-            openURL(AppInfo.socialURL)
+            if let url = AppInfo.socialURL { openURL(url) }
         } label: {
             HStack(spacing: 7) {
                 XLogoShape()

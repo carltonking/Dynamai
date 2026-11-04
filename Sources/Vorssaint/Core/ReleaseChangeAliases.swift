@@ -161,6 +161,8 @@ enum ReleaseChangeAliases {
         case .notchHermesChat: return ["hermes", "hermes chat", "hermes agent",
             .island("hermes"), .island("hermes chat"), .island("chat")]
         case .notchInstinctChat: return ["instinct", "imessage", .island("instinct"), .island("imessage")]
+        case .notchSiriChat: return ["siri", "assistant", "apple intelligence", .island("siri")]
+        case .notchMuseChat: return ["muse", "meta", "assistant", .island("muse")]
         case .notchMascot: return ["companion"]
         case .monitorCPU: return ["cpu temperature", "cpu load", "cpu readings", "per core", "per-core",
             "processor temperature", "process breakdowns", "cpu alert", "cpu and gpu temperatures"]

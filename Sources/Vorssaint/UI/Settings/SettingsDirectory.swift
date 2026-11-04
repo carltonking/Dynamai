@@ -442,11 +442,13 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
                                       keywords: [s.reviewIntro, s.reviewHighlights]),
                 SettingsDirectoryItem(page: .releaseNotes, title: s.tabReleaseNotes, icon: "sparkles"),
+            ] + (AppInfo.hasSupportLinks ? [
+                // Only while the app has donation or community pages to offer.
                 SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill",
                                       keywords: [s.donateButton, s.supportIntroStarButton,
                                                  s.discordIntroJoinButton,
                                                  s.communityIntroFollowButton]),
-            ]),
+            ] : [])),
         ]
     }
 }

@@ -25,26 +25,30 @@ enum NotchPanelTests {
                "the simulated full-screen cutout stays over app content but yields to the revealed menu bar")
         sheetContracts(expect: expect)
         activeGlass(expect: expect)
-        fieldDrops(expect: expect)
+        textFieldFocus(expect: expect)
     }
 
-    /// AppKit's field editor types a file dropped on a field as its path. The
-    /// island's hands the drag to the island when the island claims it (an
-    /// agent's page attaching it), and keeps every other drop as before.
-    private static func fieldDrops(expect: (Bool, String) -> Void) {
+    /// SwiftUI's text fields force-cast the window's field editor to its own
+    /// private class, so an island that hands out any other editor aborts the
+    /// app the moment a field takes focus, as an agent's page opening did.
+    private static func textFieldFocus(expect: (Bool, String) -> Void) {
+        _ = NSApplication.shared
         let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        let target = NSView()
-        panel.fieldDropTarget = target
-        var claims = true
-        panel.fieldDropBelongsToIsland = { _ in claims }
-        let editor = panel.fieldEditor(true, for: NSTextField()) as? NotchFieldEditor
-        expect(editor?.isFieldEditor == true, "the island's text fields are edited by its own field editor")
-        expect(panel.fieldEditor(false, for: NSTextField()) === editor, "one editor serves every field, as AppKit's does")
-        let board = NSPasteboard(name: NSPasteboard.Name("com.vorssaint.tests.field-drop.\(UUID().uuidString)"))
-        expect(editor?.forwardsDrop?(board) === target, "a drop the island claims goes to the island, not into the text")
-        claims = false
-        expect(editor?.forwardsDrop?(board) == nil, "any other drop is the field's own, as before")
+        let host = NSHostingView(rootView: TextField("", text: .constant("")).frame(width: 200, height: 40))
+        host.frame = CGRect(x: 0, y: 0, width: 200, height: 40)
+        panel.contentView = host
+        host.layoutSubtreeIfNeeded()
+        func field(in view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField { return field }
+            return view.subviews.lazy.compactMap(field(in:)).first
+        }
+        guard let textField = field(in: host) else {
+            expect(false, "a SwiftUI text field is backed by an AppKit field in the island")
+            return
+        }
+        expect(panel.makeFirstResponder(textField) && panel.firstResponder is NSText,
+               "a SwiftUI text field in the island takes focus with the field editor SwiftUI expects")
     }
 
     /// Liquid Glass draws a dull stand-in in a window that looks inactive. The

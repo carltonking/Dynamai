@@ -3,11 +3,14 @@
 
 import SwiftUI
 
-/// Full-screen overlay shown while the keyboard is locked for cleaning. It makes
-/// the locked state unmistakable, shows live progress toward the unlock gesture,
-/// and offers a mouse-clickable Unlock button so there is always an obvious way
-/// out (the mouse is never locked).
+/// Overlay shown while the keyboard and trackpad are locked for cleaning.
+/// Blacked out, it makes the locked state unmistakable and shows progress
+/// toward the unlock gesture; with the screen kept visible it is only a lock
+/// badge beside the Dynamic Island. Clicks are locked too, so it offers
+/// nothing to click: Escape five times is the only way out.
 struct CleaningOverlayView: View {
+    /// Where this screen's lock badge goes, beside its Dynamic Island.
+    let lockBadge: CleaningLockBadgeLayout
     @ObservedObject private var manager = CleaningModeManager.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var keepScreenVisible = false
@@ -16,7 +19,7 @@ struct CleaningOverlayView: View {
         ZStack {
             if keepScreenVisible {
                 Color.clear.ignoresSafeArea()
-                compactCornerHUD
+                islandLockBadge
             } else {
                 Color.black.ignoresSafeArea()
                 fullBlackoutContent
@@ -41,76 +44,43 @@ struct CleaningOverlayView: View {
 
             fullProgressDots
                 .padding(.top, 2)
-
-            Button(action: { manager.deactivate() }) {
-                Text(l10n.s.cleaningOverlayUnlock)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .frame(minWidth: 130)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 18)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.white)
-                    )
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 6)
-
-            Text(l10n.s.cleaningOverlayMouseHint)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.5))
         }
         .padding(44)
         .frame(maxWidth: 460)
     }
 
-    private var compactCornerHUD: some View {
-        VStack {
-            HStack(spacing: 12) {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        Circle()
-                            .fill(Color.primary.opacity(0.08))
-                    )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(l10n.s.cleaningOverlayTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.primary)
-
-                    HStack(spacing: 8) {
-                        Text(l10n.s.cleaningOverlaySubtitle)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.secondary)
-
-                        compactProgressDots
-                    }
+    /// With the screen kept visible the only sign of the lock is a small
+    /// padlock beside the island: no instructions, nothing to click. From the
+    /// first blocked touch (anything but Escape) it stays red until the
+    /// unlock, with the number of touches printed in its body.
+    private var islandLockBadge: some View {
+        let glyphSize = lockBadge.size.height * 0.7
+        return Image(systemName: "lock.fill")
+            .font(.system(size: glyphSize, weight: .semibold))
+            .foregroundStyle(manager.isBlockingInput ? Color.red : Color.white)
+            .overlay(alignment: .bottom) {
+                if manager.isBlockingInput {
+                    blockedInputCountLabel(glyphSize: glyphSize)
                 }
-
-                Button(action: { manager.deactivate() }) {
-                    Text(l10n.s.cleaningOverlayUnlock)
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(HUDBackdrop(cornerRadius: 16))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.22), radius: 16, x: 0, y: 6)
-            .padding(.top, 40)
-            .padding(.trailing, 24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        }
+            .animation(.easeOut(duration: 0.15), value: manager.isBlockingInput)
+            .frame(width: lockBadge.size.width, height: lockBadge.size.height)
+            .position(lockBadge.center)
+            .ignoresSafeArea()
+            .accessibilityLabel(l10n.s.cleaningOverlayTitle)
+    }
+
+    /// Sized to the padlock's body, below the shackle; long counts shrink to
+    /// fit rather than spill over the edges.
+    private func blockedInputCountLabel(glyphSize: CGFloat) -> some View {
+        Text(CleaningBlockedInputTally.label(for: manager.blockedInputCount))
+            .font(.system(size: glyphSize * 0.46, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(Color.black)
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)
+            .frame(width: glyphSize * 0.56, height: glyphSize * 0.5)
+            .padding(.bottom, glyphSize * 0.08)
     }
 
     private var fullProgressDots: some View {
@@ -119,17 +89,6 @@ struct CleaningOverlayView: View {
                 Circle()
                     .fill(index < manager.unlockProgress ? Color.white : Color.white.opacity(0.22))
                     .frame(width: 12, height: 12)
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: manager.unlockProgress)
-    }
-
-    private var compactProgressDots: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<manager.unlockThreshold, id: \.self) { index in
-                Circle()
-                    .fill(index < manager.unlockProgress ? Color.accentColor : Color.primary.opacity(0.2))
-                    .frame(width: 6, height: 6)
             }
         }
         .animation(.easeOut(duration: 0.15), value: manager.unlockProgress)

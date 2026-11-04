@@ -128,7 +128,7 @@ jobs:
           codesign --verify --deep --strict -R="$REQUIREMENT" build/stage/Vorssaint.app
 
       - name: Selftest
-        run: ./build/Vorssaint --selftest
+        run: ./build/Dynamai --selftest
 
       - name: Notarize app
         env:

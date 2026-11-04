@@ -37,7 +37,10 @@ struct MetricsTests {
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
-            ("preferences", { PreferencesFeatureTests.run(suite) }),
+            ("preferences", {
+                PreferencesFeatureTests.run(suite)
+                IdentityMigrationTests.run(suite)
+            }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)
                 DiskImageHomebrewTests.run(suite)
@@ -123,6 +126,8 @@ struct MetricsTests {
                 NotchHermesChatTests.run(suite)
                 NotchAgentMessagingTests.run(suite)
                 NotchAgentDropTests.run(suite)
+                NotchSiriChatTests.run(suite)
+                NotchMuseChatTests.run(suite)
             }),
             ("features", {
                 FeatureCatalogTests.run(suite)
@@ -163,6 +168,7 @@ struct MetricsTests {
                 QuitProtectionHUD.progressChecks(suite)
                 QuitProtectionRoutingContract.QuitProtectionService.routingChecks(suite)
             }),
+            ("calculator", { NotchCalculatorTests.run(suite) }),
             ("scratchpad", {
                 ScratchpadMarkTests.run { suite.expect($0, $1) }
                 ScratchpadLiveMarkdownTests.run(suite)

@@ -65,6 +65,18 @@ final class NotchHermesChatClient {
         /// The conversation lives where this app may not read without Full
         /// Disk Access (the Messages database).
         case needsFullDiskAccess
+        /// Muse cannot be reached through its app now; the client keeps
+        /// watching and reports the conversation once it can.
+        case museProblem(MuseAppSupport.Problem)
+        /// What the agent says it is doing before its answer lands
+        /// ("Searching"), or `nil` once it is not saying anything.
+        case status(String?)
+        /// A card a tool showed (the weather, the day's events), to go with
+        /// the answer being written.
+        case card(NotchHermesChatMessage.Card)
+        /// A card's button was acted on (an email sent): the card settles
+        /// with the result.
+        case cardDone(action: String, result: String)
 
         /// What a failed start reads as when the server said nothing.
         static let unreachable = "VERTUS did not answer."

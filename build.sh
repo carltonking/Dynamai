@@ -26,7 +26,7 @@ trap cleanup EXIT
 # into the build sweeps like any other ending.
 trap 'exit 1' INT TERM HUP
 
-# Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
+# Flags: --dev builds the local-only "Dynamai (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
 DEV=0
 INSTALL=0
@@ -43,16 +43,19 @@ for arg in "$@"; do
 done
 
 if (( DEV )); then
-    APP_NAME="Vorssaint (Developer)"
-    EXECUTABLE="VorssaintDeveloper"
-    APP_BUNDLE_ID="com.vorssaint.utils.dev"
+    APP_NAME="Dynamai (Developer)"
+    EXECUTABLE="DynamaiDeveloper"
+    APP_BUNDLE_ID="com.dynamai.app.dev"
+    # The executable and identity the Developer build had before Dynamai.
+    PREVIOUS_EXECUTABLE="VorssaintDeveloper"
     BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
     APP_OPTIMIZATION_FLAGS=(-Onone)
     BUILD_CONFIGURATION="debug"
 else
-    APP_NAME="Vorssaint"
-    EXECUTABLE="Vorssaint"
-    APP_BUNDLE_ID="com.vorssaint.utils"
+    APP_NAME="Dynamai"
+    EXECUTABLE="Dynamai"
+    APP_BUNDLE_ID="com.dynamai.app"
+    PREVIOUS_EXECUTABLE="Vorssaint"
     BUILD_VARIANT_FLAGS=()
     APP_OPTIMIZATION_FLAGS=(-O)
     BUILD_CONFIGURATION="release"
@@ -281,6 +284,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
+        Sources/Vorssaint/Core/IdentityMigration.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
         Sources/Vorssaint/Core/NotchEditorStrings.swift
@@ -305,6 +309,13 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchInstinctChatStrings.swift
         Sources/Vorssaint/Core/NotchAgentMessagingStrings.swift
         Sources/Vorssaint/Services/Notch/InstinctMessagesSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMessagesAgents.swift
+        Sources/Vorssaint/Services/Calculator/NotchCalculatorEngine.swift
+        Sources/Vorssaint/Core/NotchSiriChatStrings.swift
+        Sources/Vorssaint/Services/Notch/SiriAssistantSupport.swift
+        Sources/Vorssaint/Services/Notch/SiriMailSupport.swift
+        Sources/Vorssaint/Core/NotchMuseChatStrings.swift
+        Sources/Vorssaint/Services/Notch/MuseAppSupport.swift
         Sources/Vorssaint/Services/Notch/NotchHermesVoiceSupport.swift
         Sources/Vorssaint/Services/Notch/VertusHubSupport.swift
         Sources/Vorssaint/Core/NotchMascotStrings.swift
@@ -714,7 +725,7 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
-cp Resources/com.vorssaint.utils.fan-control.plist \
+cp Resources/com.dynamai.app.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
@@ -731,7 +742,7 @@ if (( DEV )); then
     FAN_PLIST="$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
     /usr/libexec/PlistBuddy -c "Set :Label $FAN_HELPER_ID" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID" "$FAN_PLIST"
-    /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.fan-control" "$FAN_PLIST"
+    /usr/libexec/PlistBuddy -c "Delete :MachServices:com.dynamai.app.fan-control" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Add :MachServices:$FAN_HELPER_ID bool true" "$FAN_PLIST"
     # Stamp the source commit + build time so the running dev app shows (in About)
     # exactly which code it was compiled from. Lets you verify it matches HEAD before
@@ -928,7 +939,8 @@ wait_for_install_metadata() {
 # Installed development builds only need the copy in /Applications. Retaining
 # another app in each checkout pollutes application search with stale builds.
 if (( DEV )); then
-    for old_bundle in "build/stage/$APP_NAME.app" "build/stage.noindex/$APP_NAME.app"; do
+    for old_bundle in "build/stage/$APP_NAME.app" "build/stage.noindex/$APP_NAME.app" \
+        "build/stage/Vorssaint (Developer).app" "build/stage.noindex/Vorssaint (Developer).app"; do
         if [[ -d "$old_bundle" ]]; then
             /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
                 -u "$PWD/$old_bundle" >/dev/null 2>&1 || true
@@ -958,18 +970,25 @@ fi
 if (( INSTALL )); then
     echo "▸ Installing into /Applications…"
     stop_process "$EXECUTABLE"
-    # Only an official install replaces the pre-rename official apps. The
-    # Developer variant must coexist with them just as it does with Vorssaint.
-    if (( ! DEV )); then
-        for legacy in "Vorss:Vorss" "Vorssaint Utils:VorssaintUtils"; do
-            name="${legacy%%:*}"; proc="${legacy##*:}"
-            if [[ -d "/Applications/$name.app" ]]; then
-                stop_process "$proc"
-                rm -rf "/Applications/$name.app"
-                echo "  (legacy $name.app removed)"
-            fi
-        done
+    # A bundle already named Dynamai can still run the executable it had
+    # before the rename; it is replaced below, so it must not keep running.
+    stop_process "$PREVIOUS_EXECUTABLE"
+    # Each variant replaces only its own pre-rename bundles, so the Developer
+    # app and the official one keep coexisting. The renamed bundles still run
+    # the executable stopped above.
+    if (( DEV )); then
+        legacies=("Vorssaint (Developer):VorssaintDeveloper")
+    else
+        legacies=("Vorss:Vorss" "Vorssaint Utils:VorssaintUtils" "Vorssaint:Vorssaint")
     fi
+    for legacy in "${legacies[@]}"; do
+        name="${legacy%%:*}"; proc="${legacy##*:}"
+        if [[ -d "/Applications/$name.app" ]]; then
+            [[ "$proc" == "$EXECUTABLE" || "$proc" == "$PREVIOUS_EXECUTABLE" ]] || stop_process "$proc"
+            rm -rf "/Applications/$name.app"
+            echo "  (legacy $name.app removed)"
+        fi
+    done
     INSTALL_DEST="/Applications/$APP_NAME.app"
     rm -rf "$INSTALL_DEST"
     ditto --noextattr --noqtn "$STAGE" "$INSTALL_DEST"

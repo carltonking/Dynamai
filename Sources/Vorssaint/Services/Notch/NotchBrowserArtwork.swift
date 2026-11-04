@@ -231,7 +231,7 @@ private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegat
         configuration.urlCredentialStorage = nil
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint", "Accept": accept]
+        configuration.httpAdditionalHeaders = ["User-Agent": AppInfo.name, "Accept": accept]
         let delegate = NotchBrowserArtworkDownload(completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         session.dataTask(with: url).resume()

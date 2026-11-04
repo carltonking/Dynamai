@@ -157,9 +157,9 @@ struct NotchLayoutEditor: View {
         if layout == .custom { return previewGeometry.customHeight }
         let items = NotchSupport.controls()
         return previewGeometry.expandedSize(module: .controls,
-            shortcutCount: items.filter { !$0.isLevel && $0 != .music }.count,
+            shortcutCount: NotchSupport.controlShortcuts(items).count,
             sliderCount: items.filter(\.isLevel).count,
-            controlsHaveMusic: items.contains(.music)).height
+            controlsHaveCards: NotchSupport.controlsHaveCards(items)).height
     }
 
     /// A narrow window shrinks the whole island rather than only its width.
@@ -266,14 +266,14 @@ struct NotchLayoutEditor: View {
     private var islandPreview: some View {
         let items = NotchSupport.controls()
         let levels = items.filter(\.isLevel)
-        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
+        let shortcuts = NotchSupport.controlShortcuts(items)
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
-        let controls = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
+        let controls = NotchLayout.controls(hasCards: NotchSupport.controlsHaveCards(items), levelRow: !belowLevels.isEmpty,
                                             shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
         return Button(action: editContents) {
             Color.clear.contentShape(NotchShape.island(height: actualHeight, geometry: previewGeometry))
@@ -301,7 +301,7 @@ struct NotchLayoutEditor: View {
                         NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
                     } else {
                         if controls.levelRow > 0 { NotchLevelRow(levels: belowLevels) { levelRow($0) } }
-                        if controls.cardRow > 0 { musicCard(height: controls.cardRow) }
+                        if controls.cardRow > 0 { cardRow(items: items, height: controls.cardRow) }
                         if controls.shortcutRows > 0 {
                             NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
                                       width: contentWidth, spacing: NotchLayout.shortcutSpacing,
@@ -327,22 +327,54 @@ struct NotchLayoutEditor: View {
         .frame(width: actualWidth, height: actualHeight)
     }
 
-    private func musicCard(height: CGFloat) -> some View {
-        HStack(spacing: 12) {
-            NotchArtwork(image: nil, size: max(40, height - 24))
-            // Nothing plays here and no transport follows, so the hint keeps
-            // its line beside the cover, as on the island.
-            VStack(alignment: .leading, spacing: 2) {
-                Text(FeatureStrings.radialMenu(l10n.language).mediaNothingPlaying)
-                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                Text(text.musicHint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+    /// The card row as the island draws it, without live data: the widget
+    /// stack's square with its cover and dots, and the calendar's hours with
+    /// now through the middle.
+    private func cardRow(items: [NotchControlItem], height: CGFloat) -> some View {
+        let widgets = items.filter(\.isWidget)
+        let calendar = items.contains(.calendar)
+        return HStack(spacing: NotchLayout.cardSpacing) {
+            if !widgets.isEmpty {
+                HStack(spacing: 8) {
+                    VStack(spacing: 8) {
+                        Image(systemName: widgets[0].symbol)
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .frame(width: height * 0.5, height: height * 0.5)
+                            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        Text(widgets[0].title(l10n)).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    }
+                    .frame(width: calendar ? height : nil, height: height)
+                    .frame(maxWidth: calendar ? nil : .infinity)
+                    .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+                    if widgets.count > 1 {
+                        VStack(spacing: 8) {
+                            ForEach(widgets.indices, id: \.self) { index in
+                                Circle().fill(.white.opacity(index == 0 ? 0.95 : 0.35)).frame(width: 6, height: 6)
+                            }
+                        }
+                        .frame(width: 12)
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if calendar {
+                GeometryReader { proxy in
+                    ZStack(alignment: .topLeading) {
+                        ForEach(0..<5, id: \.self) { hour in
+                            Rectangle().fill(.white.opacity(0.08)).frame(height: 1)
+                                .offset(y: proxy.size.height * CGFloat(hour) / 4)
+                        }
+                        Rectangle().fill(Color.red).frame(height: 1.5).offset(y: proxy.size.height / 2)
+                    }
+                    .padding(.leading, 40)
+                }
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+            }
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity)
         .frame(height: height)
-        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
     }
 
     /// A top-row level: the glyph, a slim bar and the chooser's chevron, with

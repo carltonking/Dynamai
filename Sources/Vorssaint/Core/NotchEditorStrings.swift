@@ -74,6 +74,9 @@ struct NotchEditorStrings {
     let watchSummary: String
     let hermesChatSummary: String
     let instinctChatSummary: String
+    let calculatorSummary: String
+    let siriChatSummary: String
+    let museChatSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -100,6 +103,12 @@ struct NotchEditorStrings {
         case .watch: return watchSummary
         case .hermesChat: return hermesChatSummary
         case .instinctChat: return instinctChatSummary
+        case .siriChat: return siriChatSummary
+        case .calculator: return calculatorSummary
+        case .museChat: return museChatSummary
+        // Instinct's line, naming the other agent: a name in every language.
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:
+            return instinctChatSummary.replacingOccurrences(of: "Instinct", with: module.messagesAgent?.name ?? "")
         }
     }
 }
@@ -150,7 +159,7 @@ extension FeatureStrings {
             enableSettingFormat: "Enable “%@” in its settings.",
             showPageFormat: "Show “%@” on the Content tab.",
             keyboardLightUnavailable: "Keyboard backlight control is unavailable on this Mac.",
-            appPanelHint: "Choose where clicking the Vorssaint menu bar icon opens the app panel, on any display.",
+            appPanelHint: "Choose where clicking the Dynamai menu bar icon opens the app panel, on any display.",
             hideMenuBarIcon: "Hide the menu bar icon",
             hideMenuBarIconHint: "Settings and the app panel open from Dynamic Island. The icon returns when the island is off or hidden in full screen, or when an update is ready or the microphone is muted.",
             sections: "Sections",
@@ -177,7 +186,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code, Codex, OpenCode and GitHub Copilot usage, limits and costs.",
             watchSummary: "Any part of a window, read live, with an alert when it changes.",
             hermesChatSummary: "A chat with VERTUS, running on this Mac.",
-            instinctChatSummary: "Your iMessage thread with Instinct."
+            instinctChatSummary: "Your iMessage thread with Instinct.",
+            calculatorSummary: "Type LaTeX or plain math and see the answer as you write.",
+            siriChatSummary: "Your own assistant, on Apple Intelligence.",
+            museChatSummary: "Meta’s Muse agent, through the Muse app."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -222,7 +234,7 @@ extension FeatureStrings {
             enableSettingFormat: "Ative “%@” nas configurações do recurso.",
             showPageFormat: "Mostre “%@” na aba Conteúdo.",
             keyboardLightUnavailable: "O controle da luz do teclado não está disponível neste Mac.",
-            appPanelHint: "Escolha onde o painel abre ao clicar no ícone do Vorssaint na barra de menus, em qualquer tela.",
+            appPanelHint: "Escolha onde o painel abre ao clicar no ícone do Dynamai na barra de menus, em qualquer tela.",
             hideMenuBarIcon: "Ocultar o ícone da barra de menus",
             hideMenuBarIconHint: "Os Ajustes e o painel do app abrem pela Dynamic Island. O ícone volta quando a ilha está desligada ou oculta em tela cheia, ou quando há atualização pronta ou microfone silenciado.",
             sections: "Seções",
@@ -249,7 +261,10 @@ extension FeatureStrings {
             agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode e do GitHub Copilot.",
             watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar.",
             hermesChatSummary: "Uma conversa com o VERTUS, rodando neste Mac.",
-            instinctChatSummary: "Sua conversa do iMessage com o Instinct."
+            instinctChatSummary: "Sua conversa do iMessage com o Instinct.",
+            calculatorSummary: "Digite LaTeX ou uma conta comum e veja o resultado enquanto escreve.",
+            siriChatSummary: "Seu próprio assistente, com a Apple Intelligence.",
+            museChatSummary: "O agente Muse da Meta, pelo app Muse."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -294,7 +309,7 @@ extension FeatureStrings {
             enableSettingFormat: "Activa “%@” en sus ajustes.",
             showPageFormat: "Muestra “%@” en la pestaña Contenido.",
             keyboardLightUnavailable: "El control de la luz del teclado no está disponible en este Mac.",
-            appPanelHint: "Elige dónde se abre el panel al pulsar el icono de Vorssaint en la barra de menús, en cualquier pantalla.",
+            appPanelHint: "Elige dónde se abre el panel al pulsar el icono de Dynamai en la barra de menús, en cualquier pantalla.",
             hideMenuBarIcon: "Ocultar el icono de la barra de menús",
             hideMenuBarIconHint: "Los Ajustes y el panel de la app se abren desde Dynamic Island. El icono vuelve cuando la isla está desactivada u oculta en pantalla completa, o cuando hay una actualización lista o el micrófono está silenciado.",
             sections: "Secciones",
@@ -321,7 +336,10 @@ extension FeatureStrings {
             agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode y GitHub Copilot.",
             watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie.",
             hermesChatSummary: "Una conversación con VERTUS, que se ejecuta en este Mac.",
-            instinctChatSummary: "Tu conversación de iMessage con Instinct."
+            instinctChatSummary: "Tu conversación de iMessage con Instinct.",
+            calculatorSummary: "Escribe LaTeX o una operación normal y ve el resultado mientras escribes.",
+            siriChatSummary: "Tu propio asistente, con Apple Intelligence.",
+            museChatSummary: "El agente Muse de Meta, a través de la app Muse."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -366,7 +384,7 @@ extension FeatureStrings {
             enableSettingFormat: "Zapnite „%@“ v jeho nastaveniach.",
             showPageFormat: "Zobrazte „%@“ na karte Obsah.",
             keyboardLightUnavailable: "Ovládanie podsvietenia klávesnice nie je na tomto Macu k dispozícii.",
-            appPanelHint: "Vyberte, kde sa otvorí panel aplikácie po kliknutí na ikonu Vorssaint v lište, na ktoromkoľvek displeji.",
+            appPanelHint: "Vyberte, kde sa otvorí panel aplikácie po kliknutí na ikonu Dynamai v lište, na ktoromkoľvek displeji.",
             hideMenuBarIcon: "Skryť ikonu v lište",
             hideMenuBarIconHint: "Nastavenia a panel aplikácie sa otvárajú z Dynamic Island. Ikona sa vráti, keď je Dynamic Island vypnutý alebo skrytý v režime celej obrazovky, alebo keď je pripravená aktualizácia či stlmený mikrofón.",
             sections: "Sekcie",
@@ -393,7 +411,10 @@ extension FeatureStrings {
             agentsSummary: "Využitie, limity a náklady Claude Code, Codexu, OpenCode a GitHub Copilot.",
             watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení.",
             hermesChatSummary: "Chat s VERTUS, ktorý beží na tomto Macu.",
-            instinctChatSummary: "Vaša konverzácia s Instinctom v iMessage."
+            instinctChatSummary: "Vaša konverzácia s Instinctom v iMessage.",
+            calculatorSummary: "Píšte LaTeX alebo bežný výpočet a výsledok uvidíte už počas písania.",
+            siriChatSummary: "Váš vlastný asistent s Apple Intelligence.",
+            museChatSummary: "Agent Muse od Mety, cez aplikáciu Muse."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -438,7 +459,7 @@ extension FeatureStrings {
             enableSettingFormat: "Aktiviere „%@“ in den zugehörigen Einstellungen.",
             showPageFormat: "Blende „%@“ im Tab Inhalt ein.",
             keyboardLightUnavailable: "Die Tastaturbeleuchtung lässt sich auf diesem Mac nicht steuern.",
-            appPanelHint: "Wähle, wo ein Klick auf das Vorssaint-Menüleistensymbol das App-Panel öffnet, auf jedem Bildschirm.",
+            appPanelHint: "Wähle, wo ein Klick auf das Dynamai-Menüleistensymbol das App-Panel öffnet, auf jedem Bildschirm.",
             hideMenuBarIcon: "Menüleistensymbol ausblenden",
             hideMenuBarIconHint: "Einstellungen und das App-Panel öffnen sich über die Dynamic Island. Das Symbol kehrt zurück, wenn Dynamic Island ausgeschaltet oder im Vollbild ausgeblendet ist, oder wenn ein Update bereitsteht oder das Mikrofon stummgeschaltet ist.",
             sections: "Bereiche",
@@ -465,7 +486,10 @@ extension FeatureStrings {
             agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode und GitHub Copilot.",
             watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen.",
             hermesChatSummary: "Ein Chat mit VERTUS, der auf diesem Mac läuft.",
-            instinctChatSummary: "Dein iMessage-Verlauf mit Instinct."
+            instinctChatSummary: "Dein iMessage-Verlauf mit Instinct.",
+            calculatorSummary: "LaTeX oder normale Rechnungen eingeben und das Ergebnis beim Tippen sehen.",
+            siriChatSummary: "Dein eigener Assistent, mit Apple Intelligence.",
+            museChatSummary: "Metas Agent Muse, über die Muse-App."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -510,7 +534,7 @@ extension FeatureStrings {
             enableSettingFormat: "Activez « %@ » dans ses réglages.",
             showPageFormat: "Affichez « %@ » dans l’onglet Contenu.",
             keyboardLightUnavailable: "Le contrôle du rétroéclairage du clavier est indisponible sur ce Mac.",
-            appPanelHint: "Choisissez où un clic sur l’icône Vorssaint de la barre des menus ouvre le panneau, sur tout écran.",
+            appPanelHint: "Choisissez où un clic sur l’icône Dynamai de la barre des menus ouvre le panneau, sur tout écran.",
             hideMenuBarIcon: "Masquer l’icône de la barre des menus",
             hideMenuBarIconHint: "Les Réglages et le panneau de l’app s’ouvrent depuis Dynamic Island. L’icône revient quand Dynamic Island est désactivée ou masquée en plein écran, ou quand une mise à jour est prête ou que le micro est coupé.",
             sections: "Sections",
@@ -537,7 +561,10 @@ extension FeatureStrings {
             agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode et GitHub Copilot.",
             watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change.",
             hermesChatSummary: "Une conversation avec VERTUS, qui tourne sur ce Mac.",
-            instinctChatSummary: "Votre conversation iMessage avec Instinct."
+            instinctChatSummary: "Votre conversation iMessage avec Instinct.",
+            calculatorSummary: "Saisissez du LaTeX ou un calcul simple et voyez le résultat pendant la saisie.",
+            siriChatSummary: "Votre propre assistant, avec Apple Intelligence.",
+            museChatSummary: "L’agent Muse de Meta, via l’app Muse."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -582,7 +609,7 @@ extension FeatureStrings {
             enableSettingFormat: "Attiva “%@” nelle relative impostazioni.",
             showPageFormat: "Mostra “%@” nella scheda Contenuto.",
             keyboardLightUnavailable: "Il controllo della retroilluminazione della tastiera non è disponibile su questo Mac.",
-            appPanelHint: "Scegli dove si apre il pannello facendo clic sull’icona di Vorssaint nella barra dei menu, su qualsiasi schermo.",
+            appPanelHint: "Scegli dove si apre il pannello facendo clic sull’icona di Dynamai nella barra dei menu, su qualsiasi schermo.",
             hideMenuBarIcon: "Nascondi l’icona nella barra dei menu",
             hideMenuBarIconHint: "Le Impostazioni e il pannello dell’app si aprono da Dynamic Island. L’icona torna quando Dynamic Island è disattivata o nascosta a schermo intero, oppure quando è pronto un aggiornamento o il microfono è silenziato.",
             sections: "Sezioni",
@@ -609,7 +636,10 @@ extension FeatureStrings {
             agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode e GitHub Copilot.",
             watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia.",
             hermesChatSummary: "Una chat con VERTUS, in esecuzione su questo Mac.",
-            instinctChatSummary: "La tua conversazione iMessage con Instinct."
+            instinctChatSummary: "La tua conversazione iMessage con Instinct.",
+            calculatorSummary: "Scrivi in LaTeX o con i normali operatori e vedi il risultato mentre scrivi.",
+            siriChatSummary: "Il tuo assistente personale, con Apple Intelligence.",
+            museChatSummary: "L’agente Muse di Meta, tramite l’app Muse."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -654,7 +684,7 @@ extension FeatureStrings {
             enableSettingFormat: "Включите «%@» в соответствующих настройках.",
             showPageFormat: "Покажите «%@» на вкладке содержимого.",
             keyboardLightUnavailable: "Управление подсветкой клавиатуры недоступно на этом Mac.",
-            appPanelHint: "Выберите, где открывать панель при нажатии значка Vorssaint в строке меню на любом экране.",
+            appPanelHint: "Выберите, где открывать панель при нажатии значка Dynamai в строке меню на любом экране.",
             hideMenuBarIcon: "Скрывать значок в строке меню",
             hideMenuBarIconHint: "Настройки и панель приложения открываются из Dynamic Island. Значок возвращается, когда Dynamic Island выключена или скрыта в полноэкранном режиме, а также когда готово обновление или выключен микрофон.",
             sections: "Разделы",
@@ -681,7 +711,10 @@ extension FeatureStrings {
             agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode и GitHub Copilot.",
             watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях.",
             hermesChatSummary: "Чат с VERTUS, запущенным на этом Mac.",
-            instinctChatSummary: "Ваша переписка с Instinct в iMessage."
+            instinctChatSummary: "Ваша переписка с Instinct в iMessage.",
+            calculatorSummary: "Пишите на LaTeX или обычными знаками и видите ответ прямо при вводе.",
+            siriChatSummary: "Ваш собственный ассистент на Apple Intelligence.",
+            museChatSummary: "Агент Muse от Meta, через приложение Muse."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -726,7 +759,7 @@ extension FeatureStrings {
             enableSettingFormat: "İlgili ayarlarda “%@” seçeneğini etkinleştirin.",
             showPageFormat: "İçerik sekmesinde “%@” sayfasını gösterin.",
             keyboardLightUnavailable: "Bu Mac’te klavye aydınlatması denetimi kullanılamıyor.",
-            appPanelHint: "Herhangi bir ekranda menü çubuğundaki Vorssaint simgesine tıklanınca panelin nerede açılacağını seçin.",
+            appPanelHint: "Herhangi bir ekranda menü çubuğundaki Dynamai simgesine tıklanınca panelin nerede açılacağını seçin.",
             hideMenuBarIcon: "Menü çubuğu simgesini gizle",
             hideMenuBarIconHint: "Ayarlar ve uygulama paneli Dynamic Island’dan açılır. Dynamic Island kapatıldığında veya tam ekranda gizlendiğinde ya da bir güncelleme hazır olduğunda veya mikrofon sessize alındığında simge geri döner.",
             sections: "Bölümler",
@@ -753,7 +786,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code, Codex, GitHub Copilot ve OpenCode kullanımı, sınırları ve maliyetleri.",
             watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir.",
             hermesChatSummary: "Bu Mac’te çalışan VERTUS ile sohbet.",
-            instinctChatSummary: "Instinct ile iMessage yazışmanız."
+            instinctChatSummary: "Instinct ile iMessage yazışmanız.",
+            calculatorSummary: "LaTeX ya da düz işlem yazın, sonucu yazarken görün.",
+            siriChatSummary: "Apple Intelligence ile kendi asistanınız.",
+            museChatSummary: "Meta’nın Muse ajanı, Muse uygulaması üzerinden."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -798,7 +834,7 @@ extension FeatureStrings {
             enableSettingFormat: "該当する設定で「%@」を有効にしてください。",
             showPageFormat: "コンテンツタブで「%@」を表示してください。",
             keyboardLightUnavailable: "このMacではキーボードのバックライトを制御できません。",
-            appPanelHint: "どの画面でも、メニューバーのVorssaintアイコンをクリックしたときにパネルを開く場所を選択します。",
+            appPanelHint: "どの画面でも、メニューバーのDynamaiアイコンをクリックしたときにパネルを開く場所を選択します。",
             hideMenuBarIcon: "メニューバーのアイコンを隠す",
             hideMenuBarIconHint: "設定とアプリのパネルはDynamic Islandから開けます。Dynamic Islandがオフかフルスクリーンで非表示のとき、またはアップデートの準備ができたときやマイクを消音したときは、アイコンが戻ります。",
             sections: "セクション",
@@ -825,7 +861,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilotの使用量、上限、コスト。",
             watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。",
             hermesChatSummary: "このMacで動くVERTUSとのチャット。",
-            instinctChatSummary: "InstinctとのiMessageのスレッド。"
+            instinctChatSummary: "InstinctとのiMessageのスレッド。",
+            calculatorSummary: "LaTeXや普通の式を入力すると、入力中に答えが表示されます。",
+            siriChatSummary: "Apple Intelligenceで動くあなた専用のアシスタント。",
+            museChatSummary: "MetaのエージェントMuse。Museアプリ経由で使います。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -870,7 +909,7 @@ extension FeatureStrings {
             enableSettingFormat: "해당 설정에서 “%@”을(를) 활성화하세요.",
             showPageFormat: "콘텐츠 탭에서 “%@”을(를) 표시하세요.",
             keyboardLightUnavailable: "이 Mac에서는 키보드 백라이트를 제어할 수 없습니다.",
-            appPanelHint: "어느 화면에서든 메뉴 막대의 Vorssaint 아이콘을 클릭할 때 패널이 열릴 위치를 선택하세요.",
+            appPanelHint: "어느 화면에서든 메뉴 막대의 Dynamai 아이콘을 클릭할 때 패널이 열릴 위치를 선택하세요.",
             hideMenuBarIcon: "메뉴 막대 아이콘 숨기기",
             hideMenuBarIconHint: "설정과 앱 패널은 Dynamic Island에서 열 수 있습니다. Dynamic Island를 끄거나 전체 화면에서 숨기거나, 업데이트가 준비되거나 마이크를 음소거하면 아이콘이 다시 나타납니다.",
             sections: "섹션",
@@ -897,7 +936,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot의 사용량, 한도, 비용.",
             watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다.",
             hermesChatSummary: "이 Mac에서 실행되는 VERTUS와의 채팅.",
-            instinctChatSummary: "Instinct와의 iMessage 대화."
+            instinctChatSummary: "Instinct와의 iMessage 대화.",
+            calculatorSummary: "LaTeX나 일반 수식을 입력하면 입력하는 동안 답이 표시됩니다.",
+            siriChatSummary: "Apple Intelligence 기반의 나만의 비서.",
+            museChatSummary: "Meta의 Muse 에이전트, Muse 앱을 통해 사용합니다."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -942,7 +984,7 @@ extension FeatureStrings {
             enableSettingFormat: "在相应设置中启用“%@”。",
             showPageFormat: "在内容标签页中显示“%@”。",
             keyboardLightUnavailable: "此 Mac 无法控制键盘背光。",
-            appPanelHint: "选择在任意显示器上点击菜单栏的 Vorssaint 图标时打开面板的位置。",
+            appPanelHint: "选择在任意显示器上点击菜单栏的 Dynamai 图标时打开面板的位置。",
             hideMenuBarIcon: "隐藏菜单栏图标",
             hideMenuBarIconHint: "设置和 App 面板可从 Dynamic Island 打开。关闭 Dynamic Island、在全屏模式下隐藏它，或有更新就绪或麦克风静音时，图标会自动回来。",
             sections: "分区",
@@ -969,7 +1011,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限额和费用。",
             watchSummary: "实时读取窗口的任意部分，变化时提醒你。",
             hermesChatSummary: "与运行在这台 Mac 上的 VERTUS 对话。",
-            instinctChatSummary: "你与 Instinct 的 iMessage 对话。"
+            instinctChatSummary: "你与 Instinct 的 iMessage 对话。",
+            calculatorSummary: "输入 LaTeX 或普通算式，边写边看结果。",
+            siriChatSummary: "你自己的助理，由 Apple Intelligence 驱动。",
+            museChatSummary: "Meta 的 Muse 智能体，通过 Muse App 使用。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -1014,7 +1059,7 @@ extension FeatureStrings {
             enableSettingFormat: "在對應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
             keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
-            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。",
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Dynamai 圖像時開啟面板的位置。",
             hideMenuBarIcon: "隱藏選單列圖示",
             hideMenuBarIconHint: "設定和 App 面板可從 Dynamic Island 開啟。關閉 Dynamic Island、在全螢幕模式下隱藏它，或有更新就緒或麥克風靜音時，圖示會自動回來。",
             sections: "區域",
@@ -1041,7 +1086,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
             hermesChatSummary: "與執行在這台 Mac 上的 VERTUS 對話。",
-            instinctChatSummary: "你與 Instinct 的 iMessage 對話。"
+            instinctChatSummary: "你與 Instinct 的 iMessage 對話。",
+            calculatorSummary: "輸入 LaTeX 或一般算式，邊寫邊看結果。",
+            siriChatSummary: "你自己的助理，由 Apple Intelligence 驅動。",
+            museChatSummary: "Meta 的 Muse 智能代理，透過 Muse App 使用。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -1086,7 +1134,7 @@ extension FeatureStrings {
             enableSettingFormat: "在相應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
             keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
-            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。",
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Dynamai 圖像時開啟面板的位置。",
             hideMenuBarIcon: "隱藏選單列圖示",
             hideMenuBarIconHint: "設定和 App 面板可從 Dynamic Island 開啟。關閉 Dynamic Island、在全螢幕模式下隱藏它，或有更新就緒或麥克風靜音時，圖示會自動回來。",
             sections: "區域",
@@ -1113,7 +1161,10 @@ extension FeatureStrings {
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
             hermesChatSummary: "與運行於這台 Mac 的 VERTUS 對話。",
-            instinctChatSummary: "你與 Instinct 的 iMessage 對話。"
+            instinctChatSummary: "你與 Instinct 的 iMessage 對話。",
+            calculatorSummary: "輸入 LaTeX 或一般算式，邊寫邊看結果。",
+            siriChatSummary: "你自己的助理，由 Apple Intelligence 驅動。",
+            museChatSummary: "Meta 的 Muse 智能代理，透過 Muse App 使用。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1158,7 +1209,7 @@ extension FeatureStrings {
             enableSettingFormat: "Увімкніть «%@» у налаштуваннях функції.",
             showPageFormat: "Покажіть «%@» на вкладці Вміст.",
             keyboardLightUnavailable: "Керування підсвічуванням клавіатури недоступне на цьому Mac.",
-            appPanelHint: "Виберіть, де на будь-якому дисплеї відкриватиметься панель програми після натискання значка Vorssaint на смузі меню.",
+            appPanelHint: "Виберіть, де на будь-якому дисплеї відкриватиметься панель програми після натискання значка Dynamai на смузі меню.",
             hideMenuBarIcon: "Ховати значок на смузі меню",
             hideMenuBarIconHint: "Налаштування й панель програми відкриваються з Dynamic Island. Значок повертається, коли Dynamic Island вимкнено або приховано в повноекранному режимі, а також коли готове оновлення чи вимкнено мікрофон.",
             sections: "Розділи",
@@ -1185,7 +1236,10 @@ extension FeatureStrings {
             agentsSummary: "Використання Claude Code, Codex, OpenCode і GitHub Copilot, ліміти й витрати.",
             watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни.",
             hermesChatSummary: "Чат із VERTUS, що працює на цьому Mac.",
-            instinctChatSummary: "Ваше листування з Instinct в iMessage."
+            instinctChatSummary: "Ваше листування з Instinct в iMessage.",
+            calculatorSummary: "Пишіть LaTeX або звичайний вираз і бачте відповідь під час введення.",
+            siriChatSummary: "Ваш власний асистент на Apple Intelligence.",
+            museChatSummary: "Агент Muse від Meta, через застосунок Muse."
         )
         }
     }

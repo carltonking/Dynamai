@@ -925,5 +925,34 @@ enum NotchDestinationContract {
         island.showInstinctChat(toggle: true)
         suite.expect(island.expanded && island.selected == .instinctChat,
                      "the Instinct shortcut opens a closed island on Instinct")
+        siriPageContracts(defaults: defaults, suite: suite)
+    }
+
+    /// ⇧⌘; opens Siri, the third agent, the same way: it switches over from
+    /// another agent's page or the regular island, and the island's own
+    /// shortcut leaves it rather than reopening onto it.
+    private static func siriPageContracts(defaults: UserDefaults, suite: TestSuite) {
+        defaults.set(true, forKey: DefaultsKey.notchInstinctChatEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchSiriChatEnabled)
+        defer {
+            defaults.set(false, forKey: DefaultsKey.notchInstinctChatEnabled)
+            defaults.set(false, forKey: DefaultsKey.notchSiriChatEnabled)
+        }
+        let island = Service()
+        island.installHotkey()
+        island.open(.music)
+        island.showSiriChat(toggle: true)
+        suite.expect(island.expanded && island.selected == .siriChat,
+                     "the Siri shortcut switches the open island to Siri without closing it")
+        island.showInstinctChat(toggle: true)
+        suite.expect(island.expanded && island.selected == .instinctChat,
+                     "the Instinct shortcut switches from Siri straight to Instinct")
+        island.showSiriChat(toggle: true)
+        island.hotkey.onPress?()
+        suite.expect(island.expanded && island.selected == .music,
+                     "the island shortcut leaves Siri's page for the page the island showed before")
+        island.showSiriChat(toggle: true)
+        island.showSiriChat(toggle: true)
+        suite.expect(!island.expanded, "a second press of the Siri shortcut on its page closes the island")
     }
 }

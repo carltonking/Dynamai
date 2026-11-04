@@ -31,7 +31,8 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchHermesChat, notchInstinctChat, notchMascot
+         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchHermesChat, notchInstinctChat, notchSiriChat,
+         notchMuseChat, notchMascot
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
@@ -83,7 +84,7 @@ extension AppFeature {
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
-             .notchMascot, .notchHermesChat, .notchInstinctChat:
+             .notchMascot, .notchHermesChat, .notchInstinctChat, .notchSiriChat, .notchMuseChat:
             return false
         default:
             return true
@@ -119,7 +120,7 @@ extension AppFeature {
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-             .notchHermesChat, .notchInstinctChat, .notchMascot:
+             .notchHermesChat, .notchInstinctChat, .notchSiriChat, .notchMuseChat, .notchMascot:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
@@ -196,6 +197,8 @@ extension AppFeature {
         case .notchWatch: return "eye"
         case .notchHermesChat: return "bubble.left.and.bubble.right"
         case .notchInstinctChat: return "message"
+        case .notchSiriChat: return "sparkle"
+        case .notchMuseChat: return "bubble.left"
         case .notchMascot: return "face.smiling"
         case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
@@ -272,6 +275,8 @@ extension AppFeature {
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchHermesChat: return [DefaultsKey.notchHermesChatEnabled]
         case .notchInstinctChat: return [DefaultsKey.notchInstinctChatEnabled]
+        case .notchSiriChat: return [DefaultsKey.notchSiriChatEnabled]
+        case .notchMuseChat: return [DefaultsKey.notchMuseChatEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
@@ -346,6 +351,12 @@ extension AppFeature {
         // The conversation is the Messages thread, which macOS keeps in a
         // database only Full Disk Access can read.
         case .notchInstinctChat: return [.fullDiskAccess]
+        // Siri runs on Apple's language model; its calendar and reminders
+        // tools ask for those the first time they are used.
+        case .notchSiriChat: return []
+        // Muse is read from the Muse app's window and typed into, which
+        // only Accessibility allows.
+        case .notchMuseChat: return [.accessibility]
         // It only draws, and hears of what happens from the island itself.
         case .notchMascot: return []
         // The bars read the player's own audio output, which macOS gates
@@ -408,7 +419,8 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute, .musicBlock, .notchWatch, .notchHermesChat, .notchInstinctChat:
+             .micMute, .musicBlock, .notchWatch, .notchHermesChat, .notchInstinctChat, .notchSiriChat,
+             .notchMuseChat:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
@@ -432,6 +444,7 @@ extension AppFeature {
     static var dynamicIslandInitialExtensions: [AppFeature] {
         dynamicIslandExtensions.filter {
             $0 != .notchMascot && $0 != .notchAgents && $0 != .notchHermesChat && $0 != .notchInstinctChat
+                && $0 != .notchSiriChat && $0 != .notchMuseChat
         }
     }
 
@@ -499,7 +512,7 @@ extension AppFeature {
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder,
-             .notchHermesChat, .notchInstinctChat:
+             .notchHermesChat, .notchInstinctChat, .notchSiriChat, .notchMuseChat:
             return false
         }
     }

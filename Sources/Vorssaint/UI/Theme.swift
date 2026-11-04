@@ -344,6 +344,81 @@ struct InstinctWordmark: View {
     }
 }
 
+/// An iMessage agent's mark beside the pages button: its name in capitals,
+/// spaced and bold, in the island's black and white like the other marks.
+struct MessagesAgentWordmark: View {
+    let name: String
+    let height: CGFloat
+
+    var body: some View {
+        Text(name)
+            .font(.system(size: height * 0.95, weight: .bold))
+            .tracking(height * 0.12)
+            .lineLimit(1)
+            .fixedSize()
+    }
+}
+
+/// SIRI's mark beside the pages button: its ring-and-wave mark and the name,
+/// in the island's black and white like the other agents' marks.
+struct SiriWordmark: View {
+    var height: CGFloat
+
+    var body: some View {
+        HStack(spacing: height * 0.35) {
+            SiriMark()
+                .frame(width: height * 1.15, height: height * 1.15)
+            Text("SIRI")
+                .font(.system(size: height * 0.95, weight: .bold))
+                .tracking(height * 0.12)
+        }
+        .frame(height: height)
+    }
+}
+
+/// SIRI's mark: a ring with a wave running through it, drawn as strokes so it
+/// takes the island's white at any size.
+struct SiriMark: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let side = min(proxy.size.width, proxy.size.height)
+            let line = side * 0.1
+            ZStack {
+                Circle()
+                    .inset(by: line / 2)
+                    .stroke(lineWidth: line)
+                SiriMarkWave()
+                    .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
+            }
+            .frame(width: side, height: side)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+/// The wave inside the ring: in from the left a little below the middle, over
+/// a crest left of centre, down through a trough and into the ring's lower
+/// right, as Siri's mark has it.
+struct SiriMarkWave: Shape {
+    func path(in rect: CGRect) -> Path {
+        let side = min(rect.width, rect.height)
+        let line = side * 0.1
+        let r = side / 2 - line / 2
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        func onRing(_ degrees: Double) -> CGPoint {
+            let a = degrees * .pi / 180
+            return CGPoint(x: c.x + r * CGFloat(cos(a)), y: c.y + r * CGFloat(sin(a)))
+        }
+        var path = Path()
+        path.move(to: onRing(172))
+        path.addCurve(to: onRing(22),
+                      control1: CGPoint(x: c.x - r * 0.3, y: c.y - r * 0.48),
+                      control2: CGPoint(x: c.x + r * 0.18, y: c.y + r * 0.62))
+        return path
+    }
+}
+
 struct ObsidianMark: View {
     var width: CGFloat
 

@@ -306,6 +306,8 @@ enum DefaultsKey {
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
+    static let cleaningModeShortcutEnabled = "cleaningModeShortcutEnabled"
+    static let cleaningModeShortcut = "cleaningModeShortcut"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
@@ -634,6 +636,10 @@ enum DefaultsKey {
     static let scratchpadOpenNotes = "scratchpadOpenNotes"        // [String]: vault-relative open notes
     static let scratchpadSelectedNote = "scratchpadSelectedNote"  // vault-relative selected note
     static let scratchpadLegacyImported = "scratchpadLegacyImported"
+    /// Set once the settings and data of the identity the app had before it
+    /// became Dynamai have been carried over. Unregistered and never backed
+    /// up: it describes this Mac, not a choice.
+    static let identityMigrated = "identityMigrated"
     static let scratchpadDocument = "scratchpadDocument"          // legacy private JSON, imported once
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
@@ -872,6 +878,9 @@ enum DefaultsKey {
     static let notchHermesChatCliPath = "notchHermesChatCliPath"
     static let notchHermesChatShortcutEnabled = "notchHermesChatShortcutEnabled"
     static let notchHermesChatShortcut = "notchHermesChatShortcut"
+    /// ⇧⌘D by default: opens the island on its calculator.
+    static let notchCalculatorShortcutEnabled = "notchCalculatorShortcutEnabled"
+    static let notchCalculatorShortcut = "notchCalculatorShortcut"
     /// Reads each finished VERTUS reply aloud. A taste, not a property of
     /// the Mac, so it travels with a settings backup.
     static let notchHermesChatSpeakReplies = "notchHermesChatSpeakReplies"
@@ -885,9 +894,19 @@ enum DefaultsKey {
     /// The phone number or address Instinct texts from. Personal, so it
     /// never leaves this Mac in a settings backup.
     static let notchInstinctNumber = "notchInstinctNumber"
-    static let notchInstinctShortcutEnabled = "notchInstinctShortcutEnabled"
-    static let notchInstinctShortcut = "notchInstinctShortcut"
     static let notchInstinctSpeakReplies = "notchInstinctSpeakReplies"
+    /// The iMessage agents beside Instinct (`NotchMessagesAgent`), each with
+    /// Instinct's three preferences under its own name.
+    static func notchMessagesAgentEnabled(_ agent: NotchMessagesAgent) -> String { "notch\(agent.name)ChatEnabled" }
+    static func notchMessagesAgentNumber(_ agent: NotchMessagesAgent) -> String { "notch\(agent.name)Number" }
+    static func notchMessagesAgentSpeakReplies(_ agent: NotchMessagesAgent) -> String { "notch\(agent.name)SpeakReplies" }
+    // Siri: the island's own assistant on Apple's language model, with tools
+    // of its own, held by the island beside VERTUS and Instinct.
+    static let notchSiriChatEnabled = "notchSiriChatEnabled"
+    static let notchSiriSpeakReplies = "notchSiriSpeakReplies"
+    // Muse: Meta's agent, through its web client, signed in once.
+    static let notchMuseChatEnabled = "notchMuseChatEnabled"
+    static let notchMuseSpeakReplies = "notchMuseSpeakReplies"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
@@ -1520,7 +1539,9 @@ enum Defaults {
         DefaultsKey.notchHermesChatEnabled: false,
         DefaultsKey.notchHermesChatCliPath: HermesACPSupport.defaultCommand,
         DefaultsKey.notchHermesChatShortcutEnabled: true,
-        DefaultsKey.notchHermesChatShortcut: GlobalShortcut.vertusChatDefault.storageValue,
+        DefaultsKey.notchHermesChatShortcut: GlobalShortcut.agentChatDefault.storageValue,
+        DefaultsKey.notchCalculatorShortcutEnabled: true,
+        DefaultsKey.notchCalculatorShortcut: GlobalShortcut.calculatorDefault.storageValue,
         // Silent until asked for: a reply read aloud in an open office is
         // a surprise nobody chose.
         DefaultsKey.notchHermesChatSpeakReplies: false,
@@ -1529,9 +1550,12 @@ enum Defaults {
         // Off until asked for: the page reads the Messages database.
         DefaultsKey.notchInstinctChatEnabled: false,
         DefaultsKey.notchInstinctNumber: "",
-        DefaultsKey.notchInstinctShortcutEnabled: true,
-        DefaultsKey.notchInstinctShortcut: GlobalShortcut.instinctChatDefault.storageValue,
         DefaultsKey.notchInstinctSpeakReplies: false,
+        DefaultsKey.notchSiriChatEnabled: false,
+        DefaultsKey.notchSiriSpeakReplies: false,
+        // Off until asked for: the page signs in to Meta.
+        DefaultsKey.notchMuseChatEnabled: false,
+        DefaultsKey.notchMuseSpeakReplies: false,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
         DefaultsKey.notchSilhouette: NotchSilhouette.capsule.rawValue,
@@ -1598,6 +1622,8 @@ enum Defaults {
         DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
+        DefaultsKey.cleaningModeShortcutEnabled: true,
+        DefaultsKey.cleaningModeShortcut: GlobalShortcut.cleaningModeDefault.storageValue,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,
@@ -2011,7 +2037,7 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
-    ]
+    ].merging(NotchMessagesAgent.registeredDefaults) { current, _ in current }
 
     static func register() {
         let defaults = UserDefaults.standard

@@ -335,6 +335,7 @@ final class FeatureRuntime: ObservableObject {
             RecentCaptureService.shared.syncWithPreferences()
         },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
+        .cleaningMode: { CleaningModeManager.shared.syncWithPreferences() },
         .wallpaper: { WallpaperService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .notch: { NotchService.shared.syncWithPreferences() },
@@ -383,6 +384,18 @@ final class FeatureRuntime: ObservableObject {
         .notchInstinctChat: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
             NotchHermesChatService.instinct.syncWithPreferences()
+            // The iMessage agents beside Instinct ride on its feature.
+            NotchHermesChatService.allMessages.forEach { $0.syncWithPreferences() }
+        },
+        // Siri's model session lives exactly as long as the island can show it.
+        .notchSiriChat: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            NotchHermesChatService.siri.syncWithPreferences()
+        },
+        // Muse's web client loads only while its page is on, and closes with it.
+        .notchMuseChat: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            NotchHermesChatService.muse.syncWithPreferences()
         },
         // Leaving folds the wings it rests in, and coming back greets.
         .notchMascot: {
@@ -436,6 +449,13 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        // Siri runs on Apple's language model: a Mac that can never run
+        // Apple Intelligence cannot run it. One where it is only turned off
+        // or still downloading installs, and the page says what is missing.
+        case .notchSiriChat:
+            return SiriAssistantAvailability.deviceCanRun ? nil
+                : String(format: FeatureStrings.notchSiriChat(L10n.shared.language).unavailableFormat,
+                         SiriAssistantAvailability.unavailableReason() ?? "")
         default:
             return nil
         }

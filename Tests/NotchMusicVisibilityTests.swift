@@ -22,6 +22,8 @@ enum NotchMusicVisibilityTests {
         var disk = false
         var fanSpeed = false
         var connectedDevices = false
+        var battery = false
+        var peripheralBattery = false
         static let none = Self()
     }
     struct Metric { let monitorNeeds = MonitorNeeds.none }

@@ -22,6 +22,8 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @AppStorage(DefaultsKey.cleaningModeShortcutEnabled) private var cleaningShortcutEnabled = true
+    @ObservedObject private var cleaningMode = CleaningModeManager.shared
 
     var body: some View {
         Form {
@@ -278,6 +280,19 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.cleaningKeepScreenVisibleCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $cleaningShortcutEnabled)
+                        .onChange(of: cleaningShortcutEnabled) { _, _ in
+                            CleaningModeManager.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .cleaningMode,
+                                          isEnabled: cleaningShortcutEnabled) {
+                        CleaningModeManager.shared.syncWithPreferences()
+                    }
+                    if cleaningShortcutEnabled, cleaningMode.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 } header: {
                     Text(l10n.s.cleaningMenuItem)
                 }

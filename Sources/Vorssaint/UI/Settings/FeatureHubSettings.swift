@@ -1061,6 +1061,8 @@ extension AppFeature {
         case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).title
         case .notchHermesChat: return FeatureStrings.notchHermesChat(L10n.shared.language).title
         case .notchInstinctChat: return FeatureStrings.notchInstinctChat(L10n.shared.language).title
+        case .notchSiriChat: return FeatureStrings.notchSiriChat(L10n.shared.language).title
+        case .notchMuseChat: return FeatureStrings.notchMuseChat(L10n.shared.language).title
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
@@ -1147,6 +1149,8 @@ extension AppFeature {
         case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).description
         case .notchHermesChat: return FeatureStrings.notchHermesChat(L10n.shared.language).description
         case .notchInstinctChat: return FeatureStrings.notchInstinctChat(L10n.shared.language).description
+        case .notchSiriChat: return FeatureStrings.notchSiriChat(L10n.shared.language).description
+        case .notchMuseChat: return FeatureStrings.notchMuseChat(L10n.shared.language).description
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription

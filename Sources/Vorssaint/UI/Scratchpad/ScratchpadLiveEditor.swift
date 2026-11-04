@@ -20,7 +20,18 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
     weak var textView: ScratchpadLiveTextView?
     private(set) var elements: [ScratchpadLiveElement] = []
     private(set) var revealed: [Bool] = []
-    private var hidden = IndexSet()
+    /// Nested list lines and how deep they sit, for the guides Obsidian
+    /// draws down from each parent's bullet.
+    private(set) var indentGuides: [(range: NSRange, levels: Int)] = []
+    private var hidden = IndexSet() {
+        didSet { leadingHidden = ScratchpadLiveMarkdown.lineStartingRuns(of: hidden, in: textView?.textStorage?.string ?? "") }
+    }
+    /// Hidden characters that start their line, such as a task's `- `. As
+    /// null glyphs they would be laid out at the end of the line above, and
+    /// AppKit would then treat the rest of the line as a wrapped continuation
+    /// and give its first line the hanging indent. They are laid out as
+    /// zero-width characters instead, so the line keeps its own first line.
+    private var leadingHidden = IndexSet()
     /// Characters whose hidden state changed during an edit, waiting for the
     /// layout manager to finish it before their glyphs can be invalidated.
     private var pendingInvalidation = IndexSet()
@@ -133,6 +144,22 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
             ? NSColor(srgbRed: 0.95, green: 0.62, blue: 0.35, alpha: 1)
             : NSColor(srgbRed: 0.75, green: 0.40, blue: 0.08, alpha: 1)
     }
+    /// Obsidian's code colours: keywords pink, types yellow, calls and
+    /// members cyan, strings green; numbers share TeX's orange.
+    static func codeColor(dark: NSColor, light: NSColor) -> NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        }
+    }
+    static let codeKeyword = codeColor(dark: NSColor(srgbRed: 0.93, green: 0.48, blue: 0.75, alpha: 1),
+                                       light: NSColor(srgbRed: 0.72, green: 0.18, blue: 0.52, alpha: 1))
+    static let codeType = codeColor(dark: NSColor(srgbRed: 0.92, green: 0.86, blue: 0.52, alpha: 1),
+                                    light: NSColor(srgbRed: 0.60, green: 0.48, blue: 0.05, alpha: 1))
+    static let codeFunction = codeColor(dark: NSColor(srgbRed: 0.45, green: 0.84, blue: 0.87, alpha: 1),
+                                        light: NSColor(srgbRed: 0.05, green: 0.50, blue: 0.58, alpha: 1))
+    static let codeString = codeColor(dark: NSColor(srgbRed: 0.56, green: 0.82, blue: 0.47, alpha: 1),
+                                      light: NSColor(srgbRed: 0.22, green: 0.52, blue: 0.15, alpha: 1))
+    static let codePadding: CGFloat = 10
     var mutedColor: NSColor { Self.faded(textColor, 0.45) }
     var codeBackground: NSColor { Self.faded(textColor, 0.08) }
 
@@ -201,6 +228,69 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         let full = NSRange(location: 0, length: storage.length)
         storage.setAttributes(baseAttributes, range: full)
         for element in elements { apply(element, to: storage) }
+        applyHangingIndents(to: storage)
+    }
+
+    /// A list item, quote or indented line that wraps continues under its
+    /// own text, as in Obsidian, rather than back at the left margin.
+    private func applyHangingIndents(to storage: NSTextStorage) {
+        let text = storage.string
+        let ns = text as NSString
+        // Code, front matter, display math and tables keep their own layout.
+        var verbatim = IndexSet()
+        var hiddenSyntax = IndexSet()
+        for element in elements {
+            switch element.kind {
+            case .codeBlock, .frontmatter, .table, .tableBlock:
+                verbatim.insert(integersIn: element.range.location..<NSMaxRange(element.range))
+            case .math(_, let display) where display:
+                verbatim.insert(integersIn: element.range.location..<NSMaxRange(element.range))
+            case .task:
+                // A task's `- ` takes no room once its box is drawn, which is
+                // how the line looks while its text is being typed.
+                for range in element.hidden { hiddenSyntax.insert(integersIn: range.location..<NSMaxRange(range)) }
+            default:
+                break
+            }
+        }
+        // Code sits inside its panel with room on either side, as Obsidian
+        // pads a code block.
+        for element in elements {
+            guard case .codeBlock = element.kind, NSMaxRange(element.range) <= storage.length else { continue }
+            let style = (paragraphStyle.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            style.firstLineHeadIndent = Self.codePadding
+            style.headIndent = Self.codePadding
+            style.tailIndent = -Self.codePadding
+            storage.addAttribute(.paragraphStyle, value: style, range: ns.paragraphRange(for: element.range))
+        }
+        let interval = paragraphStyle.defaultTabInterval
+        var guides: [(range: NSRange, levels: Int)] = []
+        defer { indentGuides = guides }
+        ns.enumerateSubstrings(in: NSRange(location: 0, length: ns.length),
+                               options: [.byLines, .substringNotRequired]) { _, line, enclosing, _ in
+            guard !verbatim.intersects(integersIn: line.location..<max(line.location + 1, NSMaxRange(line))),
+                  let prefix = ScratchpadLiveMarkdown.hangingIndentPrefix(in: text, line: line) else { return }
+            var width: CGFloat = 0
+            var leading: CGFloat?
+            for offset in prefix.location..<NSMaxRange(prefix) where !hiddenSyntax.contains(offset) {
+                let character = ns.character(at: offset)
+                if leading == nil, character != 0x09, character != 0x20 { leading = width }
+                if character == 0x09 {
+                    width = (floor(width / interval) + 1) * interval
+                } else {
+                    let font = (storage.attribute(.font, at: offset, effectiveRange: nil) as? NSFont) ?? self.baseFont
+                    width += (ns.substring(with: NSRange(location: offset, length: 1)) as NSString)
+                        .size(withAttributes: [.font: font]).width
+                }
+            }
+            let style = (self.paragraphStyle.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            style.headIndent = width.rounded()
+            storage.addAttribute(.paragraphStyle, value: style, range: enclosing)
+            let levels = Int(((leading ?? width) / interval).rounded(.down))
+            if levels > 0, ScratchpadLiveMarkdown.isListItem(in: text, line: line) {
+                guides.append((line, levels))
+            }
+        }
     }
 
     /// Restyles outside an edit, after a size or colour change.
@@ -228,7 +318,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         func addTrait(_ trait: NSFontTraitMask, _ range: NSRange) {
             guard range.length > 0, NSMaxRange(range) <= storage.length else { return }
             storage.enumerateAttribute(.font, in: range) { value, run, _ in
-                let font = (value as? NSFont) ?? baseFont
+                let font = (value as? NSFont) ?? self.baseFont
                 storage.addAttribute(.font, value: NSFontManager.shared.convert(font, toHaveTrait: trait), range: run)
             }
         }
@@ -268,8 +358,19 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
             }
         case .quote:
             break
-        case .codeBlock:
+        case .codeBlock(let language):
             add(.font, mono, element.range)
+            for (range, token) in ScratchpadLiveMarkdown.codeTokens(in: storage.string, range: element.content,
+                                                                     language: language) {
+                switch token {
+                case .keyword: add(.foregroundColor, Self.codeKeyword, range)
+                case .type: add(.foregroundColor, Self.codeType, range)
+                case .function: add(.foregroundColor, Self.codeFunction, range)
+                case .string: add(.foregroundColor, Self.codeString, range)
+                case .number: add(.foregroundColor, Self.mathNumber, range)
+                case .comment: add(.foregroundColor, mutedColor, range)
+                }
+            }
         case .thematicBreak:
             break
         case .frontmatter:
@@ -379,7 +480,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
             let character = characterIndexes[index]
             // A picture's character becomes a control glyph, which the
             // layout gives the picture's size below.
-            if pictures[character] != nil {
+            if pictures[character] != nil || leadingHidden.contains(character) {
                 adjusted[index] = .controlCharacter
             } else if hidden.contains(character) {
                 adjusted[index] = .null
@@ -415,7 +516,8 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
     func layoutManager(_ layoutManager: NSLayoutManager,
                        shouldUse action: NSLayoutManager.ControlCharacterAction,
                        forControlCharacterAt charIndex: Int) -> NSLayoutManager.ControlCharacterAction {
-        pictures[charIndex] != nil ? .whitespace : action
+        if pictures[charIndex] != nil { return .whitespace }
+        return leadingHidden.contains(charIndex) ? .zeroAdvancement : action
     }
 
     func layoutManager(_ layoutManager: NSLayoutManager,
@@ -442,7 +544,9 @@ final class ScratchpadLiveLayoutManager: NSLayoutManager {
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
         guard let styler, let container = textContainers.first else { return }
-        for element in styler.elements where element.kind == .codeBlock {
+        drawIndentGuides(in: glyphsToShow, at: origin, styler: styler)
+        for (index, element) in styler.elements.enumerated() {
+            guard case .codeBlock(let language) = element.kind else { continue }
             // From the opening fence's line break: a line that starts with
             // hidden glyphs reports the line above as its first fragment.
             let start = min(element.hidden.first.map(NSMaxRange) ?? element.range.location, NSMaxRange(element.range))
@@ -457,6 +561,36 @@ final class ScratchpadLiveLayoutManager: NSLayoutManager {
                                width: block.width - 2 * inset + 8, height: block.height)
             styler.codeBackground.setFill()
             NSBezierPath(roundedRect: panel, xRadius: 5, yRadius: 5).fill()
+            // The language sits in the panel's top corner, on the row the
+            // hidden fence leaves, as Obsidian labels it. The typed fence
+            // shows it while the caret is in the block.
+            let isRevealed = index < styler.revealed.count && styler.revealed[index]
+            guard !language.isEmpty, !isRevealed else { continue }
+            let label = NSAttributedString(string: language.prefix(1).uppercased() + language.dropFirst(),
+                                           attributes: [.font: NSFont.systemFont(ofSize: max(9, styler.baseSize - 3)),
+                                                        .foregroundColor: styler.mutedColor])
+            let size = label.size()
+            label.draw(at: NSPoint(x: panel.maxX - size.width - 10, y: panel.minY + 5))
+        }
+    }
+
+    /// Obsidian's indent guides: a hairline down from each parent bullet
+    /// beside its nested items, one per level.
+    private func drawIndentGuides(in glyphsToShow: NSRange, at origin: NSPoint, styler: ScratchpadLiveStyler) {
+        guard !styler.indentGuides.isEmpty, let storage = textStorage, let container = textContainers.first else { return }
+        let interval = (styler.baseSize * 2).rounded()
+        // The bullet's dot is drawn centred on the marker's own width.
+        let center = ("-" as NSString).size(withAttributes: [.font: styler.baseFont]).width / 2
+        ScratchpadLiveStyler.faded(styler.textColor, 0.16).setFill()
+        for guide in styler.indentGuides where NSMaxRange(guide.range) <= storage.length {
+            let glyphs = glyphRange(forCharacterRange: guide.range, actualCharacterRange: nil)
+            guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
+            enumerateLineFragments(forGlyphRange: glyphs) { rect, _, _, _, _ in
+                for level in 0..<guide.levels {
+                    let x = rect.minX + container.lineFragmentPadding + CGFloat(level) * interval + center
+                    NSRect(x: (x + origin.x).rounded() - 0.5, y: rect.minY + origin.y, width: 1, height: rect.height).fill()
+                }
+            }
         }
     }
 
@@ -613,6 +747,45 @@ final class ScratchpadLiveTextView: NSTextView {
         textView.typingAttributes = styler.baseAttributes
         scroll.documentView = textView
         return scroll
+    }
+
+    // MARK: - Header
+
+    /// A view above the first line that scrolls with the text, as Obsidian's
+    /// inline title scrolls away with its note.
+    private(set) var header: NSView?
+    private var headerHeight: CGFloat = 0
+
+    /// The text starts `height` lower (see `textContainerOrigin`); the
+    /// inset is left alone since AppKit applies it to the bottom as well.
+    func setHeader(_ view: NSView?, height: CGFloat) {
+        if header !== view { header?.removeFromSuperview() }
+        header = view
+        headerHeight = view == nil ? 0 : height
+        if let view {
+            view.frame = NSRect(x: 0, y: 0, width: bounds.width, height: height)
+            view.autoresizingMask = [.width]
+            addSubview(view)
+        }
+        invalidateTextContainerOrigin()
+        needsLayout = true
+        needsDisplay = true
+    }
+
+    override var textContainerOrigin: NSPoint {
+        let origin = super.textContainerOrigin
+        return NSPoint(x: origin.x, y: origin.y + headerHeight)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        // Room for the header under the last line too, so the text's own
+        // height still fits it all.
+        var size = newSize
+        if headerHeight > 0, let layout = layoutManager, let container = textContainer {
+            let used = layout.usedRect(for: container).height + 2 * textContainerInset.height + headerHeight
+            size.height = max(size.height, used)
+        }
+        super.setFrameSize(size)
     }
 
     override func setSelectedRanges(_ ranges: [NSValue],

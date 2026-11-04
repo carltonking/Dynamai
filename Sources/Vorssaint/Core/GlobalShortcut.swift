@@ -194,6 +194,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // W for webcam, on the same free control-option-command layer.
     static let cameraPreviewDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_W),
                                                      modifiers: [.control, .option, .command])
+    // A two-key combination for a lock that starts mid-wipe; Option-3 is
+    // free on the app's other layers (full-screen capture is Control-Option-Command-3).
+    static let cleaningModeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
+                                                    modifiers: [.option])
     // V for Vorssaint: the quick launcher's own combination.
     static let quickLauncherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                      modifiers: [.control, .command])
@@ -223,13 +227,15 @@ struct GlobalShortcut: Equatable, Hashable {
     // I for island, on the same free control-option-command layer.
     static let notchDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_I),
                                              modifiers: [.control, .option, .command])
-    // K for the agent the user talks to: opens the island on VERTUS, as the
-    // VERTUS QuickBar's ⇧⌘J opens its own panel.
-    static let vertusChatDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
+    // K for the agents: opens the island on the agent at the top of the chat
+    // screen's sidebar, as the VERTUS QuickBar's ⇧⌘J opens its own panel.
+    // The agents once had a shortcut each; the sidebar and Command-number
+    // choose between them now.
+    static let agentChatDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
+                                                 modifiers: [.command, .shift])
+    // D, on the agents' layer: opens the island's calculator.
+    static let calculatorDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_D),
                                                   modifiers: [.command, .shift])
-    // L, beside VERTUS's K on the same layer (⇧⌘I is taken on this Mac).
-    static let instinctChatDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
-                                                    modifiers: [.command, .shift])
     // L for library (S already belongs to the sound output switcher), on the
     // same free control-option-command layer.
     static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
@@ -720,6 +726,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case recentCaptures
     case screenshotClipboard
     case cameraPreview
+    case cleaningMode
     case radialMenu
     case scratchpad
     case snippetLibrary
@@ -731,8 +738,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessIncrease
     case pointerNextDisplay
     case notch
-    case vertusChat
-    case instinctChat
+    case agentChat
+    case calculator
 
     var id: String { storageKey }
 
@@ -757,6 +764,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .recentCaptures: return DefaultsKey.recentCapturesShortcut
         case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
+        case .cleaningMode: return DefaultsKey.cleaningModeShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
@@ -768,8 +776,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
-        case .vertusChat: return DefaultsKey.notchHermesChatShortcut
-        case .instinctChat: return DefaultsKey.notchInstinctShortcut
+        // Stored where VERTUS's shortcut was, so a key chosen for it stays.
+        case .agentChat: return DefaultsKey.notchHermesChatShortcut
+        case .calculator: return DefaultsKey.notchCalculatorShortcut
         }
     }
 
@@ -794,6 +803,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .recentCaptures: return .recentCapturesDefault
         case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
+        case .cleaningMode: return .cleaningModeDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
@@ -805,8 +815,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
-        case .vertusChat: return .vertusChatDefault
-        case .instinctChat: return .instinctChatDefault
+        case .agentChat: return .agentChatDefault
+        case .calculator: return .calculatorDefault
         }
     }
 
@@ -856,6 +866,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshotClipboard:
             return FeatureStrings.screenshot(L10n.shared.language).editClipboardImage
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .cleaningMode: return strings.cleaningMenuItem
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
@@ -871,8 +882,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
-        case .vertusChat: return FeatureStrings.notchHermesChat(L10n.shared.language).title
-        case .instinctChat: return FeatureStrings.notchInstinctChat(L10n.shared.language).title
+        case .agentChat: return FeatureStrings.notch(L10n.shared.language).agentChat
+        case .calculator: return FeatureStrings.notch(L10n.shared.language).calculator
         }
     }
 
@@ -920,6 +931,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .recentCaptures: return [DefaultsKey.recentCapturesShortcutEnabled]
         case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
+        case .cleaningMode: return [DefaultsKey.cleaningModeShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
@@ -931,8 +943,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
-        case .vertusChat: return [DefaultsKey.notchEnabled, DefaultsKey.notchHermesChatEnabled, DefaultsKey.notchHermesChatShortcutEnabled]
-        case .instinctChat: return [DefaultsKey.notchEnabled, DefaultsKey.notchInstinctChatEnabled, DefaultsKey.notchInstinctShortcutEnabled]
+        case .agentChat: return [DefaultsKey.notchEnabled, DefaultsKey.notchHermesChatShortcutEnabled]
+        case .calculator: return [DefaultsKey.notchEnabled, DefaultsKey.notchCalculatorShortcutEnabled]
         }
     }
 
@@ -956,6 +968,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
              .screenshotClipboard, .screenshotUpload:
             return .screenshot
         case .cameraPreview: return .cameraPreview
+        case .cleaningMode: return .cleaningMode
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
@@ -965,8 +978,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
-        case .vertusChat: return .notchHermesChat
-        case .instinctChat: return .notchInstinctChat
+        // Every agent's, so it belongs to the island rather than to one of them.
+        case .agentChat: return .notch
+        case .calculator: return .notch
         }
     }
 

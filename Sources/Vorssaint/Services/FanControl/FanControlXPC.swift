@@ -7,9 +7,9 @@ import Security
 
 enum FanControlIdentifiers {
     #if VORSSAINT_DEVELOPMENT
-    static let appBundleID = "com.vorssaint.utils.dev"
+    static let appBundleID = "com.dynamai.app.dev"
     #else
-    static let appBundleID = "com.vorssaint.utils"
+    static let appBundleID = "com.dynamai.app"
     #endif
 
     static let helperID = "\(appBundleID).fan-control"

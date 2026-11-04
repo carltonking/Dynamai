@@ -1,27 +1,27 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "O Vorssaint usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados e controlar a reprodução nos seus apps de mídia.";
+"NSAppleEventsUsageDescription" = "O Dynamai usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados e controlar a reprodução nos seus apps de mídia. A SIRI também a usa para ler, escrever e enviar e-mails no Mail quando você pede.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "O Vorssaint usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
+"NSAudioCaptureUsageDescription" = "O Dynamai usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "O Vorssaint usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
+"NSBluetoothAlwaysUsageDescription" = "O Dynamai usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "O Vorssaint grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário. Ele também escuta enquanto você dita uma mensagem para o VERTUS na Dynamic Island.";
+"NSMicrophoneUsageDescription" = "O Dynamai grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário. Ele também escuta enquanto você dita uma mensagem para o VERTUS na Dynamic Island.";
 
 /* macOS Speech Recognition permission prompt. */
-"NSSpeechRecognitionUsageDescription" = "O Vorssaint transforma sua fala em texto apenas enquanto você dita uma mensagem para o VERTUS na Dynamic Island. O reconhecimento roda neste Mac quando ele é compatível; caso contrário, a Apple processa o áudio.";
+"NSSpeechRecognitionUsageDescription" = "O Dynamai transforma sua fala em texto apenas enquanto você dita uma mensagem para o VERTUS na Dynamic Island. O reconhecimento roda neste Mac quando ele é compatível; caso contrário, a Apple processa o áudio.";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "O Vorssaint mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
+"NSCameraUsageDescription" = "O Dynamai mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "O Vorssaint consulta metadados locais em Downloads para revisar, organizar ou mover para a Lixeira apenas os arquivos confirmados do WhatsApp que você escolher. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
+"NSDownloadsFolderUsageDescription" = "O Dynamai consulta metadados locais em Downloads para revisar, organizar ou mover para a Lixeira apenas os arquivos confirmados do WhatsApp que você escolher. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
-"NSDocumentsFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
-"NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
-"NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
+"NSDesktopFolderUsageDescription" = "O Dynamai organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
+"NSDocumentsFolderUsageDescription" = "O Dynamai organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
+"NSNetworkVolumesUsageDescription" = "O Dynamai organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
+"NSRemovableVolumesUsageDescription" = "O Dynamai organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra seus próximos compromissos na parte superior da tela. Os eventos do calendário ficam neste Mac.";

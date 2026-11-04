@@ -257,28 +257,6 @@ enum NotchCalendarSupport {
         (starts || isChosen(event, in: chosen) ? [false] : []) + (ends ? [true] : [])
     }
 
-    /// The Controls tile names the next start at any distance within the
-    /// week read, not only in the countdown's hour. An appointment already
-    /// in progress is known; the one after it is what comes next. The month
-    /// grid can load weeks further ahead, where a weekday alone would read as
-    /// this week's, so the tile stops at the week.
-    static func tileEvent(_ events: [NotchCalendarEvent], now: Date,
-                          calendar: Calendar = .current) -> NotchCalendarEvent? {
-        let week = readInterval(month: nil, now: now, calendar: calendar)
-        return ordered(events).first { !$0.allDay && $0.start > now && $0.start < week.end }
-    }
-
-    /// A start later today reads as its time; a later day adds its weekday.
-    static func tileStartText(_ start: Date, now: Date, locale: Locale, calendar: Calendar = .current) -> String {
-        var style = calendar.isDate(start, inSameDayAs: now)
-            ? Date.FormatStyle.dateTime.hour().minute()
-            : Date.FormatStyle.dateTime.weekday(.abbreviated).hour().minute()
-        style.locale = locale
-        style.calendar = calendar
-        style.timeZone = calendar.timeZone
-        return start.formatted(style)
-    }
-
     /// The hour before each moment followed opens and closes; an end's hour
     /// opens no earlier than its event's start.
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
@@ -340,5 +318,85 @@ enum NotchCalendarSupport {
             ?? now.addingTimeInterval(900)
         return (upcoming(events, now: now).flatMap { [$0.start, $0.end] } + [midnight, now.addingTimeInterval(900)])
             .filter { $0 > now }.min() ?? now.addingTimeInterval(900)
+    }
+}
+
+/// The Controls page's calendar: four hours of the day with now always in
+/// the middle, so the events slide up past a line that stays put. Pure, so
+/// the placement can be tested without a calendar or a view.
+enum NotchCalendarTimeline {
+    /// Two hours either side of now.
+    static let halfSpan: TimeInterval = 2 * 3600
+    /// Events starting this close together share the width side by side;
+    /// one that starts later, while another is still on, is drawn over it,
+    /// stepped in, as Calendar and Notion Calendar draw them.
+    static let sideBySideWindow: TimeInterval = 30 * 60
+
+    struct Placement: Equatable {
+        let event: NotchCalendarEvent
+        /// 0 at the top of the window, 1 at the bottom; clipped to the window.
+        let top: Double
+        let bottom: Double
+        /// How many events it is stepped in over.
+        let depth: Int
+        let column: Int
+        let columns: Int
+    }
+
+    static func window(now: Date) -> DateInterval {
+        DateInterval(start: now.addingTimeInterval(-halfSpan), end: now.addingTimeInterval(halfSpan))
+    }
+
+    /// The whole hours inside the window, each with its place from 0 to 1.
+    static func hourMarks(now: Date, calendar: Calendar = .current) -> [(date: Date, position: Double)] {
+        let window = window(now: now)
+        guard var hour = calendar.dateInterval(of: .hour, for: window.start)?.start else { return [] }
+        var marks: [(Date, Double)] = []
+        while hour <= window.end {
+            if hour >= window.start { marks.append((hour, position(of: hour, in: window))) }
+            guard let next = calendar.date(byAdding: .hour, value: 1, to: hour) else { break }
+            hour = next
+        }
+        return marks
+    }
+
+    static func position(of date: Date, in window: DateInterval) -> Double {
+        min(1, max(0, date.timeIntervalSince(window.start) / window.duration))
+    }
+
+    /// Timed events that show in the window, placed. All-day events take no
+    /// time of day, so they have no place on the timeline.
+    static func placements(_ events: [NotchCalendarEvent], now: Date) -> [Placement] {
+        let window = window(now: now)
+        let shown = events
+            .filter { !$0.allDay && $0.end > window.start && $0.start < window.end && $0.end > $0.start }
+            .sorted { $0.start != $1.start ? $0.start < $1.start : $0.end > $1.end }
+
+        // Events that start together form a group, laid side by side.
+        var groups: [[NotchCalendarEvent]] = []
+        for event in shown {
+            if let first = groups.last?.first,
+               event.start.timeIntervalSince(first.start) < sideBySideWindow, event.start < first.end {
+                groups[groups.count - 1].append(event)
+            } else {
+                groups.append([event])
+            }
+        }
+
+        // A group steps in once over every group still on when it starts.
+        var placed: [(end: Date, depth: Int)] = []
+        var result: [Placement] = []
+        for group in groups {
+            let start = group[0].start
+            let depth = placed.filter { $0.end > start }.map { $0.depth + 1 }.max() ?? 0
+            for (column, event) in group.enumerated() {
+                result.append(Placement(event: event,
+                                        top: position(of: event.start, in: window),
+                                        bottom: position(of: event.end, in: window),
+                                        depth: depth, column: column, columns: group.count))
+            }
+            placed.append((group.map(\.end).max() ?? start, depth))
+        }
+        return result
     }
 }

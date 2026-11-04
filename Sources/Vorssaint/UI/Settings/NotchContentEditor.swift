@@ -182,6 +182,11 @@ struct NotchPagePreview: View {
         // never starts the agent itself.
         case .hermesChat: NotchHermesChatView(size: size)
         case .instinctChat: NotchHermesChatView(size: size, chat: .instinct)
+        case .siriChat: NotchSiriPage(size: size)
+        case .calculator: NotchCalculatorView(size: size)
+        case .museChat: NotchHermesChatView(size: size, chat: .muse)
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:
+            if let agent = module.messagesAgent { NotchHermesChatView(size: size, chat: .messages(agent)) }
         }
     }
 
@@ -412,6 +417,10 @@ extension NotchModule {
         case .watch: return .purple
         case .hermesChat: return Color(red: 0.62, green: 0.44, blue: 0.86)
         case .instinctChat: return Color(red: 0.20, green: 0.70, blue: 0.45)
+        case .siriChat: return Color(red: 0.55, green: 0.40, blue: 0.95)
+        case .calculator: return .orange
+        case .museChat: return Color(red: 0.35, green: 0.45, blue: 0.95)
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return Color(red: 0.20, green: 0.70, blue: 0.45)
         }
     }
 

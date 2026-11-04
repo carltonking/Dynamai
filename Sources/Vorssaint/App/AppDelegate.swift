@@ -299,6 +299,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func applicationWillTerminate(_ notification: Notification) {
         NotchHermesChatService.shared.flushHistory()
         NotchHermesChatService.instinct.flushHistory()
+        NotchHermesChatService.siri.flushHistory()
+        NotchHermesChatService.muse.flushHistory()
+        NotchHermesChatService.allMessages.forEach { $0.flushHistory() }
         isTerminating = true
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
@@ -1558,9 +1561,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(shelfItem)
         }
 
-        let updatesItem = NSMenuItem(title: strings.menuCheckUpdates, action: #selector(menuCheckUpdates), keyEquivalent: "")
-        updatesItem.target = self
-        menu.addItem(updatesItem)
+        if AppInfo.updatesEnabled {
+            let updatesItem = NSMenuItem(title: strings.menuCheckUpdates, action: #selector(menuCheckUpdates), keyEquivalent: "")
+            updatesItem.target = self
+            menu.addItem(updatesItem)
+        }
 
         menu.addItem(.separator())
 
@@ -1774,6 +1779,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func openFeedbackWindow(kind: FeedbackKind = .bug) {
+        guard AppInfo.feedbackEndpoint != nil else { return }
         closePopover()
         let host = NSHostingController(rootView: FeedbackView(initialKind: kind) { [weak self] in
             self?.feedbackWindow?.close()
@@ -2359,7 +2365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func showSupportUpdateIntroIfNeeded() -> Bool {
         // Stable patches share one invitation, even if the first installed
         // version in this release series is a hotfix.
-        guard SupportUpdateIntroInfo.shouldShow(
+        guard AppInfo.hasSupportLinks, SupportUpdateIntroInfo.shouldShow(
             appVersion: AppInfo.version,
             lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
         ) else { return false }
@@ -2368,7 +2374,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showSupportUpdateIntro(isReview: Bool = false) {
-        guard !isTerminating, isReview || !AppInfo.isBeta else { return }
+        // An invitation to donate or join a community needs somewhere to go.
+        guard AppInfo.hasSupportLinks, !isTerminating, isReview || !AppInfo.isBeta else { return }
         closePopover()
         if let window = supportIntroWindow {
             NSApp.activate(ignoringOtherApps: true)

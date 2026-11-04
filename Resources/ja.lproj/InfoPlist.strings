@@ -1,27 +1,27 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaintは、ファイルの移動、項目をゴミ箱に入れる操作、要求されたコマンドの実行、お使いのメディアアプリの再生操作にオートメーションを使用します。";
+"NSAppleEventsUsageDescription" = "Dynamaiは、ファイルの移動、項目をゴミ箱に入れる操作、要求されたコマンドの実行、お使いのメディアアプリの再生操作にオートメーションを使用します。依頼に応じて、SIRIがメールアプリでメールを読み、作成し、送信するためにも使用します。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaintは、ミキサーで各アプリの音量を調整するため、Dynamic Islandの音楽バーを動かすため、また開始した画面収録にMacの音声を含めるために、各アプリの音声を使用します。Macの外に送信されることはありません。";
+"NSAudioCaptureUsageDescription" = "Dynamaiは、ミキサーで各アプリの音量を調整するため、Dynamic Islandの音楽バーを動かすため、また開始した画面収録にMacの音声を含めるために、各アプリの音声を使用します。Macの外に送信されることはありません。";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaintは、接続済み周辺機器のバッテリー残量を読み取るためだけにBluetoothを使用します。データがMacの外に送信されることはありません。";
+"NSBluetoothAlwaysUsageDescription" = "Dynamaiは、接続済み周辺機器のバッテリー残量を読み取るためだけにBluetoothを使用します。データがMacの外に送信されることはありません。";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaintは、画面収録でマイクをオンにしたときだけ音声を収録します。一時リンクを作成しない限り、音声はMac上に保存されます。Dynamic IslandでVERTUSへのメッセージを音声入力している間も聞き取ります。";
+"NSMicrophoneUsageDescription" = "Dynamaiは、画面収録でマイクをオンにしたときだけ音声を収録します。一時リンクを作成しない限り、音声はMac上に保存されます。Dynamic IslandでVERTUSへのメッセージを音声入力している間も聞き取ります。";
 
 /* macOS Speech Recognition permission prompt. */
-"NSSpeechRecognitionUsageDescription" = "Vorssaintは、Dynamic IslandでVERTUSへのメッセージを音声入力している間だけ、話した内容をテキストに変換します。対応するMacでは認識はこのMac上で行われ、それ以外の場合はAppleが音声を処理します。";
+"NSSpeechRecognitionUsageDescription" = "Dynamaiは、Dynamic IslandでVERTUSへのメッセージを音声入力している間だけ、話した内容をテキストに変換します。対応するMacでは認識はこのMac上で行われ、それ以外の場合はAppleが音声を処理します。";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaintは、開いたプレビューウインドウにのみカメラを表示し、通話前に自分の映りを確認できるようにします。何も録画されず、Macの外に送信されることもありません。";
+"NSCameraUsageDescription" = "Dynamaiは、開いたプレビューウインドウにのみカメラを表示し、通話前に自分の映りを確認できるようにします。何も録画されず、Macの外に送信されることもありません。";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaintは、ダウンロード内のローカルメタデータを確認し、選択した確認済みWhatsAppファイルだけを確認、整理、またはゴミ箱へ移動します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSDownloadsFolderUsageDescription" = "Dynamaiは、ダウンロード内のローカルメタデータを確認し、選択した確認済みWhatsAppファイルだけを確認、整理、またはゴミ箱へ移動します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
-"NSDocumentsFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
-"NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
-"NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSDesktopFolderUsageDescription" = "Dynamaiは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSDocumentsFolderUsageDescription" = "Dynamaiは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSNetworkVolumesUsageDescription" = "Dynamaiは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSRemovableVolumesUsageDescription" = "Dynamaiは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 "NSCalendarsFullAccessUsageDescription" = "画面上部に今後の予定を表示します。カレンダーの予定がこのMacの外に送信されることはありません。";

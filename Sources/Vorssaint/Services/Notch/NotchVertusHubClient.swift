@@ -14,6 +14,11 @@ protocol NotchAgentChatTransport: AnyObject {
     func end()
     /// Answers an approval the agent is waiting on.
     func answer(_ approval: String, choice: NotchAgentApproval.Choice)
+    /// The person cleared the page. A transport that carries the
+    /// conversation on its side (Siri's model session) starts a new one.
+    func startOver()
+    /// A button on one of the agent's cards was tapped (Siri's Send).
+    func perform(action: String, button: String)
 }
 
 /// Files go to an agent on this Mac by path; Messages carries them as files.
@@ -21,6 +26,12 @@ extension NotchAgentChatTransport {
     func send(_ text: String, attachments: [URL]) {
         send(NotchAgentReplySupport.prompt(text, attachments: attachments))
     }
+
+    /// The agent keeps its conversation on its side; the page only empties.
+    func startOver() {}
+
+    /// Only Siri's cards have buttons.
+    func perform(action: String, button: String) {}
 }
 
 /// `hermes acp` never reaches an approval card: the island refuses its

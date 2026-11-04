@@ -2,15 +2,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-# Cleanly removes Vorssaint and every piece of system state it created:
+# Cleanly removes Dynamai and every piece of system state it created:
 # the fan helper daemon, the login item, TCC permissions, preferences, saved
 # state, the app's own data folder and (if present) the password-free
 # closed-lid sudoers rule. Leaves no dead entries behind.
-# Also clears the pre-rename "Vorssaint Utils.app" if it is still around.
+# Also clears the pre-rename "Vorssaint.app" and "Vorssaint Utils.app" if they
+# are still around.
 set -uo pipefail
 
-BUNDLE="com.vorssaint.utils"
-APP="/Applications/Vorssaint.app"
+BUNDLE="com.dynamai.app"
+# The identity the app had before it was renamed Dynamai. Its settings move to
+# BUNDLE on first launch, but an install that never ran as Dynamai keeps them.
+PREVIOUS_BUNDLE="com.vorssaint.utils"
+APP="/Applications/Dynamai.app"
+PREVIOUS_APP="/Applications/Vorssaint.app"
 LEGACY_APP="/Applications/Vorssaint Utils.app"
 
 # A readable domain with a missing key is different from a failed read. Export
@@ -125,7 +130,9 @@ sleep 0.5
 # check after the loop settles what its absence or failure left behind.
 detached=1
 ran_app=0
-for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
+for candidate in "$APP/Contents/MacOS/Dynamai" "$APP/Contents/MacOS/Vorssaint" \
+    "$PREVIOUS_APP/Contents/MacOS/Vorssaint" \
+    "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
     if [[ -x "$candidate" ]]; then
         echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
         ran_app=1
@@ -179,24 +186,28 @@ if [[ -n "$spaces_before_removal" ]] && (( ran_app )); then
 fi
 
 echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
-tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
+for identity in "$BUNDLE" "$PREVIOUS_BUNDLE"; do
+    tccutil reset All "$identity" >/dev/null 2>&1 || true
+done
 
 echo "▸ Removing app, preferences, saved state and stored data (clipboard history, shelf files, share links)…"
-rm -rf "$APP" "$LEGACY_APP"
-defaults delete "$BUNDLE" >/dev/null 2>&1 || true
-rm -f "$HOME/Library/Preferences/$BUNDLE.plist"
-rm -rf "$HOME/Library/Saved Application State/$BUNDLE.savedState"
-# Clipboard history, shelf files, captures and the share delete tokens live
-# here; the in-app uninstall takes them, so this path must not keep them.
-rm -rf "$HOME/Library/Application Support/$BUNDLE"
-rm -rf "$HOME/Library/Caches/$BUNDLE"
-# Written by URLSession on the app's behalf, so they exist without the app ever
-# naming the path; `defaults delete` does not reach them either.
-rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.binarycookies"
-# `defaults delete` does not reach ByHost. The (N) qualifier is load-bearing:
-# without it zsh aborts the command on an unmatched pattern, which is the
-# ordinary case, and prints an error over a successful uninstall.
-rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
+rm -rf "$APP" "$PREVIOUS_APP" "$LEGACY_APP"
+for identity in "$BUNDLE" "$PREVIOUS_BUNDLE"; do
+    defaults delete "$identity" >/dev/null 2>&1 || true
+    rm -f "$HOME/Library/Preferences/$identity.plist"
+    rm -rf "$HOME/Library/Saved Application State/$identity.savedState"
+    # Clipboard history, shelf files, captures and the share delete tokens live
+    # here; the in-app uninstall takes them, so this path must not keep them.
+    rm -rf "$HOME/Library/Application Support/$identity"
+    rm -rf "$HOME/Library/Caches/$identity"
+    # Written by URLSession on the app's behalf, so they exist without the app
+    # ever naming the path; `defaults delete` does not reach them either.
+    rm -rf "$HOME/Library/HTTPStorages/$identity" "$HOME/Library/HTTPStorages/$identity.binarycookies"
+    # `defaults delete` does not reach ByHost. The (N) qualifier is load-bearing:
+    # without it zsh aborts the command on an unmatched pattern, which is the
+    # ordinary case, and prints an error over a successful uninstall.
+    rm -f "$HOME/Library/Preferences/ByHost/$identity".*.plist(N)
+done
 
 # The closed-lid rule under its current name and the two earlier ones, the
 # same files the app looks for. Each path is checked on its own. zsh passes an
@@ -209,7 +220,7 @@ for rule in "${RULES[@]}"; do
 done
 if (( ${#found_rules} )); then
     echo "▸ Removing closed-lid sudoers rule (asks for your admin password)…"
-    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Dynamai uninstaller\"" || true
 fi
 
 # `--uninstall` restores sleep, but it runs before the app has an
@@ -246,36 +257,36 @@ case "$(spaces_removal_state "$spaces_owed" "$spaces_journal")" in
 esac
 
 if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 && spaces_unloaded == 0 && spaces_unknown == 0 )); then
-    echo "✓ Vorssaint fully removed."
+    echo "✓ Dynamai fully removed."
     exit 0
 fi
 if (( detached )); then
-    echo "⚠ Vorssaint removed, but its fan helper is still registered with the system." >&2
-    echo "  Reinstall Vorssaint, then use Settings › Advanced to uninstall from inside the app." >&2
+    echo "⚠ Dynamai removed, but its fan helper is still registered with the system." >&2
+    echo "  Reinstall Dynamai, then use Settings › Advanced to uninstall from inside the app." >&2
 fi
 if (( sleep_stuck )); then
-    echo "⚠ Vorssaint removed, but this Mac still has sleep switched off." >&2
+    echo "⚠ Dynamai removed, but this Mac still has sleep switched off." >&2
     echo "  Closed-lid mode disabled it, and restoring it needed a password this script could not ask for." >&2
     echo "  Put it back with: sudo pmset disablesleep 0" >&2
 fi
 if (( sleep_unknown )); then
-    echo "⚠ Vorssaint removed, but whether sleep came back could not be read." >&2
+    echo "⚠ Dynamai removed, but whether sleep came back could not be read." >&2
     echo "  Closed-lid mode had switched it off. Check with: pmset -g | grep SleepDisabled" >&2
     echo "  If that reads 1, put it back with: sudo pmset disablesleep 0" >&2
 fi
 if (( spaces_stuck )); then
-    echo "⚠ Vorssaint removed, but Spaces are still kept in a fixed order." >&2
+    echo "⚠ Dynamai removed, but Spaces are still kept in a fixed order." >&2
     echo "  Fixed Space order had turned rearranging off, and it was not put back." >&2
     echo "  Turn it back on in System Settings › Desktop & Dock with" >&2
     echo "  \"Automatically rearrange Spaces based on most recent use\"." >&2
 fi
 if (( spaces_unloaded )); then
-    echo "⚠ Vorssaint removed, but the Dock still keeps Spaces in a fixed order." >&2
+    echo "⚠ Dynamai removed, but the Dock still keeps Spaces in a fixed order." >&2
     echo "  Space rearranging was put back on, and the Dock reads it when it restarts." >&2
     echo "  Log out and back in to finish." >&2
 fi
 if (( spaces_unknown )); then
-    print -u2 "Vorssaint removed, but whether Space rearranging was restored could not be confirmed."
+    print -u2 "Dynamai removed, but whether Space rearranging was restored could not be confirmed."
     print -u2 "Check Automatically rearrange Spaces based on most recent use in System Settings."
 fi
 exit 1

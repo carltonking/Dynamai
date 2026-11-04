@@ -526,17 +526,19 @@ private struct MenuPanelHeader: View {
 
                     Spacer()
 
-                    Button {
-                        appDelegate()?.openFeedbackWindow()
-                    } label: {
-                        Image(systemName: "bubble.left.and.text.bubble.right")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(4)
-                            .contentShape(Rectangle())
+                    if AppInfo.feedbackEndpoint != nil {
+                        Button {
+                            appDelegate()?.openFeedbackWindow()
+                        } label: {
+                            Image(systemName: "bubble.left.and.text.bubble.right")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .padding(4)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(FeatureStrings.feedback(l10n.language).openButton)
                     }
-                    .buttonStyle(.plain)
-                    .help(FeatureStrings.feedback(l10n.language).openButton)
                 }
             }
         }

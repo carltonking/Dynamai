@@ -24,7 +24,8 @@ struct ScratchpadLiveElement: Equatable {
         /// `ScratchpadSupport.taskToggleEdit` takes it.
         case task(checked: Bool, box: Int)
         case quote
-        case codeBlock
+        /// A fenced block; `language` is the fence's info word, as typed.
+        case codeBlock(language: String)
         case thematicBreak
         case frontmatter
         /// `$inline$` or a `$$display$$` block, drawn typeset over `replaced`.
@@ -96,9 +97,45 @@ enum ScratchpadLiveMarkdown {
         return hidden
     }
 
+    /// The hidden characters that open their line, up to its end. The live
+    /// editor lays these out as zero-width characters rather than as nothing:
+    /// a line whose first glyphs are nothing is joined to the line above by
+    /// AppKit, which then gives its first line the hanging indent.
+    static func lineStartingRuns(of hidden: IndexSet, in text: String) -> IndexSet {
+        let ns = text as NSString
+        var leading = IndexSet()
+        for run in hidden.rangeView where run.lowerBound <= ns.length {
+            guard run.lowerBound == 0 || ns.character(at: run.lowerBound - 1) == 0x0A else { continue }
+            for index in run where index < ns.length {
+                // A run can cross lines (a hidden fence); only its first
+                // line's part starts a line this way.
+                if ns.character(at: index) == 0x0A { break }
+                leading.insert(index)
+            }
+        }
+        return leading
+    }
+
     // MARK: - Lists
 
     private static let listItem = regex(#"^[ \t]*(?:>[ \t]*)*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)"#)
+    private static let wrapPrefix = regex(#"^[ \t]*(?:>[ \t]?)*[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[[^\]\n]\][ \t]+)?)?"#)
+
+    /// True for a bullet, task or numbered item, quoted or not.
+    static func isListItem(in text: String, line: NSRange) -> Bool {
+        listItem.firstMatch(in: text, options: [.anchored], range: line) != nil
+    }
+
+    /// What a wrapped line hangs under, as in Obsidian: the indent, quote bars
+    /// and list marker (with a task's box) that start `line`, so the item's
+    /// second line starts under its text rather than at the margin. Nil when
+    /// the line starts with text.
+    static func hangingIndentPrefix(in text: String, line: NSRange) -> NSRange? {
+        guard let match = wrapPrefix.firstMatch(in: text, options: [.anchored], range: line),
+              match.range.length > 0, match.range.length < line.length else { return nil }
+        return match.range
+    }
+
 
     /// Tab and Shift-Tab on list items nest and un-nest them, as in Obsidian:
     /// a tab goes in at (or one level comes off) the start of every line the
@@ -192,7 +229,8 @@ enum ScratchpadLiveMarkdown {
                 let contentStart = min(NSMaxRange(line) + 1, NSMaxRange(range))
                 let contentEnd = closing.map { max(contentStart, $0.location - 1) } ?? NSMaxRange(range)
                 elements.append(ScratchpadLiveElement(
-                    kind: .codeBlock, range: range,
+                    kind: .codeBlock(language: fence.info.split(separator: " ").first.map(String.init) ?? ""),
+                    range: range,
                     content: NSRange(location: contentStart, length: contentEnd - contentStart),
                     hidden: [line] + (closing.map { [$0] } ?? []),
                     reveal: range))
@@ -546,5 +584,145 @@ enum ScratchpadLiveMarkdown {
             }
             return nil
         }
+    }
+}
+
+// MARK: - Code
+
+/// Colours code in a fenced block as Obsidian's editor does: keywords, types,
+/// calls and properties, strings, numbers and comments. A tokenizer, not a
+/// parser, so it never fails on half-typed code; the fence's language only
+/// picks the comment markers and keywords.
+extension ScratchpadLiveMarkdown {
+    enum CodeToken: Equatable { case keyword, type, function, string, number, comment }
+
+    private struct CodeSyntax {
+        let lineComments: [String]
+        let blockComments: Bool
+    }
+
+    private static func codeSyntax(for language: String) -> CodeSyntax {
+        switch language.lowercased() {
+        case "python", "py", "ruby", "rb", "sh", "bash", "zsh", "shell", "console", "yaml", "yml",
+             "toml", "r", "perl", "pl", "make", "makefile", "dockerfile", "ini", "conf", "nix", "elixir", "ex":
+            return CodeSyntax(lineComments: ["#"], blockComments: false)
+        case "sql", "lua", "haskell", "hs":
+            return CodeSyntax(lineComments: ["--"], blockComments: true)
+        case "php":
+            return CodeSyntax(lineComments: ["//", "#"], blockComments: true)
+        case "html", "xml", "markdown", "md", "json", "csv", "text", "txt":
+            return CodeSyntax(lineComments: [], blockComments: false)
+        default:
+            return CodeSyntax(lineComments: ["//"], blockComments: true)
+        }
+    }
+
+    static let codeKeywords: Set<String> = [
+        "abstract", "and", "as", "assert", "async", "await", "break", "case", "catch", "class", "const",
+        "continue", "def", "default", "defer", "del", "do", "elif", "else", "enum", "except", "export",
+        "extends", "extension", "fallthrough", "false", "final", "finally", "fn", "for", "from", "func",
+        "function", "global", "go", "guard", "if", "impl", "implements", "import", "in", "init", "instanceof",
+        "interface", "internal", "is", "lambda", "let", "match", "mod", "module", "mut", "namespace", "new",
+        "nil", "None", "nonlocal", "not", "null", "open", "operator", "or", "override", "package", "pass",
+        "private", "protocol", "protected", "pub", "public", "raise", "return", "self", "Self", "static",
+        "struct", "super", "switch", "synchronized", "this", "throw", "throws", "trait", "true", "True",
+        "False", "try", "type", "typeof", "undefined", "use", "var", "where", "while", "with", "yield",
+        "then", "fi", "done", "esac", "echo", "select", "insert", "update", "delete", "create", "table",
+        "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "TABLE", "JOIN", "ON", "AND", "OR",
+    ]
+
+    static let codeTypes: Set<String> = [
+        "void", "int", "long", "short", "byte", "char", "float", "double", "boolean", "bool", "string",
+        "String", "str", "Int", "Double", "Float", "Bool", "Character", "Integer", "Object", "Array",
+        "List", "Map", "Set", "Dict", "dict", "list", "tuple", "set", "any", "Any", "number", "object",
+        "unsigned", "signed", "size_t", "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64", "f32", "f64",
+        "usize", "isize", "Void", "Optional", "Result", "Vec", "Option",
+    ]
+
+    private static let codeIdentifier = regex(#"[A-Za-z_$][A-Za-z0-9_$]*"#)
+    private static let codeNumber = regex(#"\b(?:0[xX][0-9a-fA-F_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)[fFdDlLuU]?\b"#)
+
+    /// The coloured runs of `range`, the code between a block's fences.
+    static func codeTokens(in text: String, range: NSRange, language: String) -> [(NSRange, CodeToken)] {
+        let ns = text as NSString
+        guard NSMaxRange(range) <= ns.length, range.length > 0 else { return [] }
+        let syntax = codeSyntax(for: language)
+        var tokens: [(NSRange, CodeToken)] = []
+        var claimed = IndexSet()
+        func claim(_ token: NSRange, _ kind: CodeToken) {
+            tokens.append((token, kind))
+            claimed.insert(integersIn: token.location..<NSMaxRange(token))
+        }
+
+        // Comments and strings first, scanned left to right, so a quote in a
+        // comment or a `//` in a string is text.
+        var index = range.location
+        let end = NSMaxRange(range)
+        func starts(_ marker: String, at position: Int) -> Bool {
+            let length = (marker as NSString).length
+            return position + length <= end && ns.substring(with: NSRange(location: position, length: length)) == marker
+        }
+        while index < end {
+            let character = ns.character(at: index)
+            if syntax.blockComments, starts("/*", at: index) {
+                let close = ns.range(of: "*/", options: [], range: NSRange(location: index + 2, length: end - index - 2))
+                let stop = close.location == NSNotFound ? end : NSMaxRange(close)
+                claim(NSRange(location: index, length: stop - index), .comment)
+                index = stop
+                continue
+            }
+            if let marker = syntax.lineComments.first(where: { starts($0, at: index) }),
+               marker != "#" || index == range.location || ns.character(at: index - 1) != 0x24 {
+                let lineEnd = ns.lineRange(for: NSRange(location: index, length: 0))
+                var stop = min(NSMaxRange(lineEnd), end)
+                if stop > index, ns.character(at: stop - 1) == 0x0A { stop -= 1 }
+                claim(NSRange(location: index, length: stop - index), .comment)
+                index = max(stop, index + (marker as NSString).length)
+                continue
+            }
+            if character == 0x22 || character == 0x27 || character == 0x60 {
+                var stop = index + 1
+                while stop < end {
+                    let next = ns.character(at: stop)
+                    if next == 0x5C { stop += 2; continue }
+                    if next == character { stop += 1; break }
+                    // A quote left open ends with its line, not the block.
+                    if next == 0x0A && character != 0x60 { break }
+                    stop += 1
+                }
+                stop = min(stop, end)
+                claim(NSRange(location: index, length: stop - index), .string)
+                index = stop
+                continue
+            }
+            index += 1
+        }
+
+        for match in codeNumber.matches(in: text, range: range)
+            where !claimed.intersects(integersIn: match.range.location..<NSMaxRange(match.range)) {
+            tokens.append((match.range, .number))
+        }
+        for match in codeIdentifier.matches(in: text, range: range)
+            where !claimed.intersects(integersIn: match.range.location..<NSMaxRange(match.range)) {
+            let word = ns.substring(with: match.range)
+            let before = match.range.location > range.location ? ns.character(at: match.range.location - 1) : 0
+            if before >= 0x30 && before <= 0x39 { continue }
+            var after = NSMaxRange(match.range)
+            while after < end, ns.character(at: after) == 0x20 { after += 1 }
+            let next = after < end ? ns.character(at: after) : 0
+            if codeKeywords.contains(word) {
+                tokens.append((match.range, .keyword))
+            } else if codeTypes.contains(word) {
+                tokens.append((match.range, .type))
+            } else if next == 0x28 || before == 0x2E {
+                // A call, `name(`, or a member, `.name`.
+                tokens.append((match.range, .function))
+            } else if let first = word.unicodeScalars.first, CharacterSet.uppercaseLetters.contains(first),
+                      next == 0x2E {
+                // `System.out`: a type used for its members.
+                tokens.append((match.range, .function))
+            }
+        }
+        return tokens.sorted { $0.0.location < $1.0.location }
     }
 }

@@ -22,15 +22,17 @@ import AppKit
 /// could mistake the just-updated app for a leftover; that is fixed by routing
 /// the old-name case to a rename and comparing canonical paths everywhere else.
 enum BundleMigration {
-    private static let oldName = "Vorssaint Utils.app"
-    private static let newName = "Vorssaint.app"
+    /// Every earlier name of the bundle: "Vorssaint Utils.app" before 2.5, then
+    /// "Vorssaint.app" until the app was renamed Dynamai.
+    private static let oldNames = ["Vorssaint Utils.app", "Vorssaint.app"]
+    private static let newName = "Dynamai.app"
 
     /// Returns true when the app is about to quit and relaunch under the new
     /// name; the caller should then skip the rest of startup.
     @discardableResult
     static func run() -> Bool {
         let bundleURL = Bundle.main.bundleURL
-        if bundleURL.lastPathComponent == oldName {
+        if oldNames.contains(bundleURL.lastPathComponent) {
             return renameSelfAndRelaunch(from: bundleURL)
         }
         retireStrayOldBundle(running: bundleURL)
@@ -92,12 +94,14 @@ enum BundleMigration {
         let dirs = Set([running.deletingLastPathComponent().path, "/Applications"])
 
         for dir in dirs {
-            let candidate = URL(fileURLWithPath: dir).appendingPathComponent(oldName)
-            let candidatePath = candidate.resolvingSymlinksInPath().standardizedFileURL.path
-            guard candidatePath != runningPath,                       // never ourselves
-                  FileManager.default.fileExists(atPath: candidate.path),
-                  Bundle(url: candidate)?.bundleIdentifier == myID else { continue }
-            try? FileManager.default.trashItem(at: candidate, resultingItemURL: nil)
+            for oldName in oldNames {
+                let candidate = URL(fileURLWithPath: dir).appendingPathComponent(oldName)
+                let candidatePath = candidate.resolvingSymlinksInPath().standardizedFileURL.path
+                guard candidatePath != runningPath,                   // never ourselves
+                      FileManager.default.fileExists(atPath: candidate.path),
+                      Bundle(url: candidate)?.bundleIdentifier == myID else { continue }
+                try? FileManager.default.trashItem(at: candidate, resultingItemURL: nil)
+            }
         }
     }
 }

@@ -5,13 +5,31 @@ import Foundation
 
 /// Static identity of the app, shared by UI, notifications and tooling.
 enum AppInfo {
-    static let name = "Vorssaint"
-    static let copyright = "© 2026 Vorssaint"
-    static let websiteURL = URL(string: "https://vorssaint.com")!
-    static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
-    static let coffeeURL = URL(string: "https://buymeacoffee.com/vorssaint")!
-    static let discordURL = URL(string: "https://discord.gg/M6BwWH4BJp")!
-    static let socialURL = URL(string: "https://x.com/vorssaint")!
+    static let name = "Dynamai"
+    /// Dynamai is built from Vorssaint (GPL-3.0-or-later), whose copyright
+    /// notice the license requires the app to keep showing.
+    static let copyright = "Based on Vorssaint · © 2026 Vorssaint · GPL-3.0"
+
+    // Dynamai has no website, repository, donation or community pages of its
+    // own yet. Every link, invitation and menu item that would point at one
+    // is hidden while its address is nil; set one and it comes back.
+    static let websiteURL: URL? = nil
+    static let repositoryURL: URL? = nil
+    static let coffeeURL: URL? = nil
+    static let discordURL: URL? = nil
+    static let socialURL: URL? = nil
+    static var hasSupportLinks: Bool { coffeeURL != nil || repositoryURL != nil || discordURL != nil }
+
+    /// The GitHub `owner/repo` whose releases the in-app updater installs.
+    /// Nil turns updating off entirely: nothing is checked or downloaded, and
+    /// the update controls are hidden. The app this was forked from publishes
+    /// its own releases, which would replace Dynamai if they were installed.
+    static let updateRepository: String? = nil
+    static var updatesEnabled: Bool { updateRepository != nil }
+
+    /// Where Send Feedback posts. Nil hides it: the server the fork came with
+    /// belongs to Vorssaint's maintainers, not to this app.
+    static let feedbackEndpoint: URL? = nil
 
     /// The bundle version. The fallback only applies to the bare binary
     /// (e.g. `--selftest`), never the shipped app, which reads its Info.plist.
@@ -19,7 +37,7 @@ enum AppInfo {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     }
 
-    /// True for the local "Vorssaint (Developer)" build (bundle id ends in `.dev`).
+    /// True for the local "Dynamai (Developer)" build (bundle id ends in `.dev`).
     /// It is never published and never auto-updates; all work is tested here first.
     static var isDeveloperBuild: Bool {
         (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")

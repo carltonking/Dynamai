@@ -4,19 +4,30 @@
 import AppKit
 import SwiftUI
 
-/// The Instinct settings: the switch, Instinct's number, the page's shortcut,
-/// and where the thread stands. The page itself is `NotchHermesChatView`
-/// carrying `NotchHermesChatService.instinct`.
+/// The Instinct settings: the switch, Instinct's number and where the thread
+/// stands. The page itself is `NotchHermesChatView` carrying
+/// `NotchHermesChatService.instinct`. With an `agent` the same settings serve
+/// that iMessage agent instead, under its own name and preferences.
 struct NotchInstinctChatSettingsControls: View {
-    @ObservedObject private var chat = NotchHermesChatService.instinct
+    let agent: NotchMessagesAgent?
+    @ObservedObject private var chat: NotchHermesChatService
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchInstinctChatEnabled) private var enabled = false
-    @AppStorage(DefaultsKey.notchInstinctNumber) private var number = ""
-    @AppStorage(DefaultsKey.notchInstinctShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage private var enabled: Bool
+    @AppStorage private var number: String
+
+    init(agent: NotchMessagesAgent? = nil) {
+        self.agent = agent
+        _chat = ObservedObject(wrappedValue: agent.map(NotchHermesChatService.messages) ?? .instinct)
+        _enabled = AppStorage(wrappedValue: agent != nil, agent?.enabledKey ?? DefaultsKey.notchInstinctChatEnabled)
+        _number = AppStorage(wrappedValue: "", agent?.numberKey ?? DefaultsKey.notchInstinctNumber)
+    }
     /// The number the open thread was found by. Opening this page is not a
     /// reason to read the thread again; editing the number is.
     @State private var appliedNumber: String?
-    private var words: NotchInstinctChatStrings { FeatureStrings.notchInstinctChat(l10n.language) }
+    private var words: NotchInstinctChatStrings {
+        let words = FeatureStrings.notchInstinctChat(l10n.language)
+        return agent.map { words.named($0.name) } ?? words
+    }
     private var text: NotchHermesChatStrings { chat.strings(l10n.language) }
     private static let editSettleDelay = Duration.milliseconds(700)
 
@@ -34,12 +45,6 @@ struct NotchInstinctChatSettingsControls: View {
                 }
                 Text(words.numberHint).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Toggle(L10n.shared.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in chat.syncShortcut() }
-                ShortcutPreferenceRow(role: .instinctChat, isEnabled: shortcutEnabled) { chat.syncShortcut() }
-                if shortcutEnabled, chat.shortcutRegistrationFailed {
-                    Text(L10n.shared.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
-                }
                 status
             }
         }

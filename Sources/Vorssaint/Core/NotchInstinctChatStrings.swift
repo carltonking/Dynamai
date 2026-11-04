@@ -31,6 +31,33 @@ struct NotchInstinctChatStrings {
     /// a developer build is a separate entry in System Settings.
     func fullDiskAccess(_ app: String) -> String { String(format: fullDiskAccessFormat, app) }
 
+    /// The same words for another iMessage agent (`NotchMessagesAgent`):
+    /// Instinct is a name in every language, so each other agent's name takes
+    /// its place and the page reads as its own.
+    func named(_ name: String) -> NotchInstinctChatStrings {
+        func rename(_ words: String) -> String { words.replacingOccurrences(of: "Instinct", with: name) }
+        return NotchInstinctChatStrings(
+            title: rename(title),
+            description: rename(description),
+            enable: rename(enable),
+            number: rename(number),
+            numberPlaceholder: rename(numberPlaceholder),
+            numberHint: rename(numberHint),
+            connecting: rename(connecting),
+            placeholder: rename(placeholder),
+            emptyTitle: rename(emptyTitle),
+            emptySubtitle: rename(emptySubtitle),
+            noNumber: rename(noNumber),
+            toolMissingFormat: rename(toolMissingFormat),
+            fullDiskAccessFormat: rename(fullDiskAccessFormat),
+            openFullDiskAccess: rename(openFullDiskAccess),
+            reachedOut: rename(reachedOut),
+            unreachableFormat: rename(unreachableFormat),
+            waiting: rename(waiting),
+            stopped: rename(stopped),
+            openLink: rename(openLink))
+    }
+
     /// The shared chat page's words with Instinct's in place of VERTUS's.
     func chat(_ base: NotchHermesChatStrings) -> NotchHermesChatStrings {
         var words = base

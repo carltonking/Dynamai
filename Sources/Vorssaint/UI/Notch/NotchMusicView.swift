@@ -717,84 +717,67 @@ struct NotchMusicTimeline: View {
     }
 }
 
-/// The home surface shares playback actions without opening lyrics or queue
-/// readers: the player's cover, the title and artist beside it, and the
-/// transport at the end of their line, or under the title where a level card
-/// shares the row.
-struct NotchMusicControlsView: View {
+/// Music as a widget in the Controls page's stack: the cover on top, the
+/// song and artist under it and the transport at the bottom, as the square
+/// widgets on an iPhone lay it out. With nothing playing the cover opens
+/// the music app, as the wide card did.
+struct NotchMusicWidget: View {
     @ObservedObject var notch: NotchService
-    var height: CGFloat = NotchLayout.cardHeight
+    let size: CGSize
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var isIdle: Bool {
-        !preview && music.playback == nil && !music.awaitingPlayback
-    }
+    private var isIdle: Bool { !preview && music.playback == nil && !music.awaitingPlayback }
 
     var body: some View {
         let player = isIdle ? NotchPreferredPlayer.current() : nil
-        let idleOpens = player != nil
         let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
-        HStack(spacing: 12) {
-            // With nothing playing, the cover opens the music app instead.
+        // The cover gives way first, so the titles and transport always fit.
+        let transportHeight: CGFloat = 36
+        let titlesHeight: CGFloat = 32
+        let cover = max(36, min(size.width - 40, size.height - transportHeight - titlesHeight - 30))
+        VStack(spacing: 6) {
             Button {
                 if isIdle, NotchPreferredPlayer.open() { return }
                 notch.select(.music)
             } label: {
-                NotchArtwork(image: music.artwork, size: max(40, height - 24), source: music.playback?.track)
+                NotchArtwork(image: music.artwork, size: cover, source: music.playback?.track)
             }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 16))
-            .accessibilityLabel(idleOpens ? openTitle : text.mediaNowPlaying)
-            .help(idleOpens ? openTitle : text.mediaNowPlaying)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    // Measured at its narrowest, so a long title truncates
-                    // before the transport moves under it.
-                    titles(artist: true)
-                        .frame(minWidth: 80, idealWidth: 80, maxWidth: .infinity, alignment: .leading)
-                    transport(idleOpens: idleOpens, openTitle: openTitle).fixedSize()
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    // A shortened card keeps the title and the transport.
-                    titles(artist: height >= 84)
-                    transport(idleOpens: idleOpens, openTitle: openTitle).frame(maxWidth: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
-        .modifier(NotchControlSurface(cornerRadius: 18))
-        .onAppear { if !preview { music.refreshAutomation() } }
-    }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+            .accessibilityLabel(player != nil ? openTitle : text.mediaNowPlaying)
+            .help(player != nil ? openTitle : text.mediaNowPlaying)
 
-    private func titles(artist: Bool) -> some View {
-        Button { notch.select(.music) } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
-                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                if artist {
+            Button { notch.select(.music) } label: {
+                VStack(spacing: 1) {
+                    Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
+                        .font(.system(size: 13, weight: .semibold))
                     Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
-                         : music.playback?.track.artist ?? music.playback?.track.album
-                            ?? (music.awaitingPlayback ? "" : FeatureStrings.notch(l10n.language).musicHint))
+                         : music.playback?.track.artist ?? music.playback?.track.album ?? " ")
                         .font(.system(size: 11))
                         .foregroundStyle(music.commandFailed ? .orange : .secondary)
-                        .lineLimit(1)
+                }
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .frame(height: titlesHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Group {
+                if let playback = music.playback {
+                    NotchMusicTransport(playback: playback, compact: true)
+                } else if player != nil {
+                    NotchMusicIdleTransport(compact: true, openTitle: openTitle)
+                } else {
+                    Color.clear
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .frame(height: transportHeight)
         }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder private func transport(idleOpens: Bool, openTitle: String) -> some View {
-        if let playback = music.playback {
-            NotchMusicTransport(playback: playback, compact: true)
-        } else if idleOpens {
-            NotchMusicIdleTransport(compact: true, openTitle: openTitle)
-        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(width: size.width, height: size.height)
+        .onAppear { if !preview { music.refreshAutomation() } }
     }
 }

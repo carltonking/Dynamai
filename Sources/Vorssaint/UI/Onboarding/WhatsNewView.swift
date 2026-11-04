@@ -236,7 +236,7 @@ private struct UpdateSupportContent: View {
                 .frame(maxWidth: 440)
 
             Button {
-                openURL(AppInfo.coffeeURL)
+                if let url = AppInfo.coffeeURL { openURL(url) }
             } label: {
                 Label(l10n.s.supportIntroCoffeeButton,
                       systemImage: "cup.and.saucer.fill")
@@ -249,7 +249,7 @@ private struct UpdateSupportContent: View {
                 .foregroundStyle(.tertiary)
 
             Button {
-                openURL(AppInfo.repositoryURL)
+                if let url = AppInfo.repositoryURL { openURL(url) }
             } label: {
                 Label(l10n.s.supportIntroStarHint, systemImage: "star")
                     .font(.caption)

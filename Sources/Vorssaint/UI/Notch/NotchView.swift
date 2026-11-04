@@ -466,11 +466,11 @@ struct NotchView: View {
         switch service.selected {
         case .controls:
             let items = NotchSupport.controls()
-            let shortcuts = items.filter { $0 != .music && !$0.isLevel }
+            let shortcuts = NotchSupport.controlShortcuts(items)
             let levels = items.filter(\.isLevel).count
             let band = NotchBand(geometry: service.expandedGeometry, contentWidth: size.width)
             size.height = max(size.height, NotchLayout.controls(
-                hasCards: items.contains(.music), levelRow: NotchLayout.bandLevelCount(levels, band: band) < levels,
+                hasCards: NotchSupport.controlsHaveCards(items), levelRow: NotchLayout.bandLevelCount(levels, band: band) < levels,
                 shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
         case .timer:
             let session = NotchTimerService.shared.session
@@ -599,8 +599,10 @@ struct NotchView: View {
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
-            case .hermesChat: NotchHermesChatView(size: pageSize)
-            case .instinctChat: NotchHermesChatView(size: pageSize, chat: .instinct)
+            // One screen for every agent, chosen in its sidebar.
+            case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:
+                NotchAgentChatScreen(service: service, size: pageSize)
+            case .calculator: NotchCalculatorView(size: pageSize)
             }
         }
     }
@@ -838,6 +840,10 @@ extension NotchModule: PanelOrderItem {
         case .watch: return FeatureStrings.notchWatch(language).title
         case .hermesChat: return FeatureStrings.notchHermesChat(language).title
         case .instinctChat: return FeatureStrings.notchInstinctChat(language).title
+        case .siriChat: return FeatureStrings.notchSiriChat(language).title
+        case .calculator: return FeatureStrings.notch(language).calculator
+        case .museChat: return FeatureStrings.notchMuseChat(language).title
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return messagesAgent?.name ?? ""
         }
     }
 }

@@ -83,7 +83,6 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // island's own Space, joined before it first shows, holds it in place.
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         panel.contentView = quickAccessContainer ?? canvas
-        panel.fieldDropTarget = canvas
         panel.setFrame(pixelAligned(geometry.frame(for: size)), display: false)
         canvas.islandMinX = { [weak self] size in self?.islandMinX(size) }
         canvas.stageCentreX = { [weak self] in
@@ -916,27 +915,6 @@ final class NotchPanel: NSPanel {
         if event.type == .scrollWheel,
            handleScroll?(event) == true || HorizontalWheelScrolling.handle(event) { return }
         super.sendEvent(event)
-    }
-
-    /// The island's own drop target, and whether a drag over a text field
-    /// belongs to it: files dropped on an agent's message field are attached,
-    /// not typed into it as their path.
-    weak var fieldDropTarget: NSView?
-    var fieldDropBelongsToIsland: ((NSPasteboard) -> Bool)?
-    private var islandFieldEditor: NotchFieldEditor?
-
-    override func fieldEditor(_ createFlag: Bool, for object: Any?) -> NSText? {
-        guard object is NSTextField else { return super.fieldEditor(createFlag, for: object) }
-        if islandFieldEditor == nil, createFlag {
-            let editor = NotchFieldEditor()
-            editor.isFieldEditor = true
-            editor.forwardsDrop = { [weak self] pasteboard in
-                guard let self, let target = self.fieldDropTarget else { return nil }
-                return self.fieldDropBelongsToIsland?(pasteboard) == true ? target : nil
-            }
-            islandFieldEditor = editor
-        }
-        return islandFieldEditor ?? super.fieldEditor(createFlag, for: object)
     }
 }
 

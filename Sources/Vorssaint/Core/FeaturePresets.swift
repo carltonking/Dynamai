@@ -126,6 +126,9 @@ extension AppFeature {
         // message, and the switch is what starts and stops it.
         case .notchHermesChat: return .idle
         case .notchInstinctChat: return .idle
+        // Siri's model runs only while it answers a message.
+        case .notchSiriChat: return .idle
+        case .notchMuseChat: return .idle
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic

@@ -88,15 +88,19 @@ enum NotchTests {
                && QuickToolsSupport.gridIndex(after: 9, count: 7, flow: .columns(rows: 2), direction: .up) == 6,
                "with two rows the arrows follow the columns the tiles fill, clamped to the last tile")
         let controls = NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: NotchLayout.compactContentHeight)
-        suite.expect(controls == NotchControlsLayout(cardRow: NotchLayout.cardHeight, shortcutRows: 1)
-               && controls.height == NotchLayout.cardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight
-               && controls.height < NotchLayout.compactContentHeight,
-               "the default home page is the player's card row over one shortcut rail, shorter than the compact strip")
+        suite.expect(controls == NotchControlsLayout(cardRow: NotchLayout.minimumCardHeight, shortcutRows: 1)
+               && controls.height == NotchLayout.minimumCardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight,
+               "in the compact strip the card row gives way to its minimum and keeps one shortcut rail under it, scrolled to")
+        let spaciousHome = NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424,
+                                                height: NotchLayout.spaciousContentHeight)
+        suite.expect(spaciousHome == NotchControlsLayout(cardRow: NotchLayout.cardHeight, shortcutRows: 1)
+               && spaciousHome.height == NotchLayout.spaciousContentHeight,
+               "a spacious island holds the whole card row over one shortcut rail")
         let nineTiles = NotchLayout.controls(hasCards: false, shortcutCount: 9, width: 424, height: 154)
         suite.expect(NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: 154)
-               == NotchControlsLayout(cardRow: 154 - NotchLayout.shortcutHeight - NotchLayout.rowSpacing, shortcutRows: 1)
+               == NotchControlsLayout(cardRow: NotchLayout.minimumCardHeight, shortcutRows: 1)
                && NotchLayout.controls(hasCards: false, shortcutCount: 0, width: 424, height: 154) == NotchControlsLayout(cardRow: 0, shortcutRows: 0)
-               && NotchLayout.controls(hasCards: true, shortcutCount: 0, width: 424, height: 154).height == NotchLayout.cardHeight
+               && NotchLayout.controls(hasCards: true, shortcutCount: 0, width: 424, height: 154).height == 154
                && nineTiles == NotchControlsLayout(cardRow: 0, shortcutRows: 2, shortcutRowSpacing: NotchLayout.shortcutLeastRowSpacing),
                "the smallest custom island shortens the cards to keep the rail, and rows nobody enabled cost nothing")
         let timerSetup = NotchLayout.timer(mode: .timer, hasSession: false, height: 180)
@@ -651,7 +655,7 @@ enum NotchTests {
                                 let page = base.page(.controls, controls: controls, sectionsButton: button)
                                 let content = page.contentSize(for: page.expandedSize(module: .controls, shortcutCount: count,
                                                                                       sliderCount: levelCount,
-                                                                                      controlsHaveMusic: music))
+                                                                                      controlsHaveCards: music))
                                 let band = NotchBand(geometry: page, contentWidth: content.width)
                                 let below = NotchLayout.bandLevelCount(levelCount, band: band) < levelCount
                                 let pageHeight = max(content.height, NotchLayout.controls(
@@ -702,7 +706,7 @@ enum NotchTests {
                                       customHeight: NotchSize.heightRange.lowerBound, silhouette: .capsule)
             .page(.controls, controls: narrowControls, sectionsButton: false)
         let content = narrowest.contentSize(for: narrowest.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 3,
-                                                                        controlsHaveMusic: false))
+                                                                        controlsHaveCards: false))
         let rows = NotchLayout.controls(hasCards: false, shortcutCount: 8, width: content.width, height: content.height).shortcutRows
         let narrowGap = NotchLayout.railGap(columns: NotchLayout.railColumns(count: 8, rows: rows), itemWidth: tile,
                                             spacing: spacing, least: NotchLayout.shortcutLeastSpacing, width: content.width)
@@ -758,7 +762,7 @@ enum NotchTests {
                                 let page = base.page(.controls, controls: controls, sectionsButton: button)
                                 let content = page.contentSize(for: page.expandedSize(module: .controls, shortcutCount: count,
                                                                                       sliderCount: levelCount,
-                                                                                      controlsHaveMusic: music))
+                                                                                      controlsHaveCards: music))
                                 let band = NotchBand(geometry: page, contentWidth: content.width)
                                 let below = NotchLayout.bandLevelCount(levelCount, band: band) < levelCount
                                 // The page as the island draws it, from the height it is given.
@@ -822,7 +826,7 @@ enum NotchTests {
                                      customWidth: NotchSize.widthRange.lowerBound,
                                      customHeight: NotchSize.heightRange.lowerBound)
                 .page(.controls, controls: cameraControls, sectionsButton: false)
-            let island = page.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 2, controlsHaveMusic: false)
+            let island = page.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 2, controlsHaveCards: false)
             let content = page.contentSize(for: island)
             let layout = NotchLayout.controls(hasCards: false, shortcutCount: 8, width: content.width, height: content.height)
             let gap = NotchLayout.railGap(columns: NotchLayout.railColumns(count: 8, rows: layout.shortcutRows),
@@ -1673,6 +1677,12 @@ enum NotchTests {
                "every preference sync of a running island registers or releases its shortcut")
         suite.expect(service.contains("preferenceSyncWork?.cancel(); preferenceSyncWork = nil\n        hotkey.unregister()"),
                "stopping the island releases its shortcut")
+        // The agents' one shortcut, ⇧⌘K, follows the same preference sync,
+        // opens the agent at the top of the sidebar and goes with the island.
+        suite.expect(service.contains("        syncAgentShortcut()\n        syncCalculatorShortcut()\n        syncShortcut()")
+                && service.contains("agentHotkey.onPress = { [weak self] in self?.showTopAgentChat(toggle: true) }")
+                && service.contains("hotkey.unregister()\n        agentHotkey.unregister()"),
+               "the agents' shortcut is synced with the island's, opens the top agent and is released when the island stops")
     }
 
     static func run(_ suite: TestSuite) {
@@ -1897,7 +1907,7 @@ enum NotchTests {
                      "a saved island choice stays configured even if the master switch was never used")
 
         suite.expect(!NotchSupport.isEnabled(in: defaults), "notch is opt-in")
-        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar],
+        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar, .batteries],
                "home defaults prioritize playback and everyday system controls")
         defaults.set(false, forKey: DefaultsKey.notchTimerEnabled)
         defaults.set(false, forKey: DefaultsKey.notchCalendarEnabled)
@@ -1920,15 +1930,15 @@ enum NotchTests {
         let wideHome = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1280, height: 832), safeAreaTop: 28,
                                      cameraWidth: 156, layout: .spacious, menuBarHeight: 28)
         func homeHeight(_ geometry: NotchGeometry, sliders: Int, music: Bool = true) -> CGFloat {
-            geometry.expandedSize(module: .controls, sliderCount: sliders, controlsHaveMusic: music).height
+            geometry.expandedSize(module: .controls, sliderCount: sliders, controlsHaveCards: music).height
         }
+        // The card row is the same height however many levels the top row
+        // holds; a compact strip cuts it to the strip, which then scrolls.
         suite.expect([capsuleHome, narrowHome, wideHome].allSatisfy { geometry in
-                   (0...3).allSatisfy { sliders in
-                       homeHeight(geometry, sliders: sliders) - homeHeight(geometry, sliders: sliders, music: false)
-                           == NotchLayout.cardHeight + NotchLayout.rowSpacing
-                   }
+                   let added = (0...3).map { homeHeight(geometry, sliders: $0) - homeHeight(geometry, sliders: $0, music: false) }
+                   return added.allSatisfy { $0 > 0 && $0 == added[0] }
                },
-               "home playback is the card row and its spacing whatever the levels, which never take a card")
+               "the home page's card row costs the same whatever the levels, which never take a card")
         suite.expect(homeHeight(capsuleHome, sliders: 3) == homeHeight(capsuleHome, sliders: 0)
                && homeHeight(wideHome, sliders: 2) == homeHeight(wideHome, sliders: 0)
                && homeHeight(narrowHome, sliders: 2) == homeHeight(narrowHome, sliders: 0)
@@ -2258,7 +2268,7 @@ enum NotchTests {
                "shortcut ordering tolerates duplicate and obsolete identifiers")
         suite.expect(!controls.contains(.volume) && !controls.contains(.screenshot), "individual controls can be hidden")
         defaults.set("", forKey: DefaultsKey.notchHiddenControls)
-        suite.expect(NotchSupport.controls(in: defaults).last == .scratchpad
+        suite.expect(NotchSupport.controls(in: defaults).contains(.scratchpad)
                && NotchQuickAction(id: NotchQuickAction.control(.scratchpad).id) == .control(.scratchpad)
                && NotchQuickAction.optionalActions.contains(.control(.scratchpad)),
                "the scratchpad shortcut can be shown among the controls and placed as a floating button")
@@ -2453,7 +2463,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch, .calculator],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
@@ -2657,22 +2667,24 @@ enum NotchTests {
                       CGRect(x: -1920, y: -100, width: 1920, height: 1080),
                       CGRect(x: 100, y: 982, width: 900, height: 1440),
                       CGRect(x: 0, y: 0, width: 640, height: 480)]
+        // The gallery shows every agent as one tile, so it lays out that many.
+        let gallery = NotchSupport.combiningAgentChats(allModules, last: nil)
         let compact = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210)
         let spacious = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
         let tall = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom, customHeight: 640)
         for geometry in [compact, spacious, tall] {
-            suite.expect(geometry.sectionPickerSize(count: 1).height < geometry.sectionPickerSize(count: allModules.count).height,
+            suite.expect(geometry.sectionPickerSize(count: 1).height < geometry.sectionPickerSize(count: gallery.count).height,
                    "a short search result shrinks the gallery instead of reserving empty rows")
         }
-        suite.expect(compact.sectionRows(count: allModules.count) == 3 && spacious.sectionRows(count: allModules.count) == 3
-               && compact.contentSize(for: compact.sectionPickerSize(count: allModules.count)).height <= compact.pageBudget
-               && tall.sectionRows(count: allModules.count) > spacious.sectionRows(count: allModules.count)
-               && tall.sectionRows(count: allModules.count)
-                   <= NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns),
+        suite.expect(compact.sectionRows(count: gallery.count) == 3 && spacious.sectionRows(count: gallery.count) == 3
+               && compact.contentSize(for: compact.sectionPickerSize(count: gallery.count)).height <= compact.pageBudget
+               && tall.sectionRows(count: gallery.count) > spacious.sectionRows(count: gallery.count)
+               && tall.sectionRows(count: gallery.count)
+                   <= NotchSectionPaging.rows(count: gallery.count, columns: tall.sectionColumns),
                "the gallery is a page: presets show three whole rows and a tall island shows more")
         suite.expect(compact.sectionColumns == 4 && spacious.sectionColumns == 5
-               && compact.sectionColumns * compact.sectionRows(count: allModules.count) < allModules.count
-               && spacious.sectionColumns * (spacious.sectionRows(count: allModules.count) + 1) >= allModules.count,
+               && compact.sectionColumns * compact.sectionRows(count: gallery.count) < gallery.count
+               && spacious.sectionColumns * (spacious.sectionRows(count: gallery.count) + 1) >= gallery.count,
                "a compact island steps rows to reach its last sections and a spacious one steps at most one")
         suite.expect(NotchLayout.sectionTileHeight * 2 + NotchLayout.sectionSpacing <= NotchLayout.compactContentHeight
                && NotchLayout.sectionTileHeight * 3 + NotchLayout.sectionSpacing * 2 <= NotchLayout.pageContentHeight,
@@ -2683,7 +2695,7 @@ enum NotchTests {
                              - CGFloat(columns - 1) * NotchLayout.sectionSpacing) / CGFloat(columns)
             suite.expect(tileWidth >= NotchLayout.sectionTileWidth,
                    "gallery tiles keep their readable width beside the row indicator")
-            suite.expect(QuickToolsSupport.gridIndex(after: 0, count: allModules.count,
+            suite.expect(QuickToolsSupport.gridIndex(after: 0, count: gallery.count,
                                                      flow: .rows(columns: columns), direction: .down) == columns,
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
@@ -2736,24 +2748,26 @@ enum NotchTests {
                && compactPlayer.contentSize(for: idleMusic).height
                    == NotchLayout.musicPlayerHeight(band: compactPlayer.musicBandHeight, playing: false),
                "empty music keeps its message and buttons without reserving a timeline")
-        let fullControls = compact.expandedSize(module: .controls, shortcutCount: 10, sliderCount: 2, controlsHaveMusic: true)
-        let fewerShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 2, controlsHaveMusic: true)
-        let onlyShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 2, controlsHaveMusic: false)
-        let onlyPlayer = compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 2, controlsHaveMusic: true)
-        let onlyLevels = compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 2, controlsHaveMusic: false)
+        let fullControls = compact.expandedSize(module: .controls, shortcutCount: 10, sliderCount: 2, controlsHaveCards: true)
+        let fewerShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 2, controlsHaveCards: true)
+        let onlyShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 2, controlsHaveCards: false)
+        let onlyPlayer = compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 2, controlsHaveCards: true)
+        let onlyLevels = compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 2, controlsHaveCards: false)
         suite.expect(fullControls == fewerShortcuts && fewerShortcuts.height > onlyShortcuts.height
-               && fewerShortcuts.height > onlyPlayer.height && onlyPlayer.height > onlyLevels.height,
+               && fewerShortcuts.height >= onlyPlayer.height && onlyPlayer.height > onlyLevels.height,
                "a compact island runs extra shortcuts sideways and drops the rows nobody enabled")
         suite.expect(compact.contentSize(for: onlyLevels).height == 0,
                "two levels alone sit in the top row and leave the page nothing to hold")
-        suite.expect(compact.contentSize(for: fullControls).height
-                   == NotchLayout.cardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight
+        suite.expect(compact.contentSize(for: fullControls).height == NotchLayout.compactContentHeight
+               && NotchLayout.controls(hasCards: true, shortcutCount: 10, width: compact.contentWidth,
+                                       height: NotchLayout.compactContentHeight).height
+                   == NotchLayout.minimumCardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight
                && compact.expanded == fullControls
-               && spacious.expandedSize(module: .controls, shortcutCount: 10).height
-                   > spacious.expandedSize(module: .controls, shortcutCount: 3).height,
-               "the default home page is the player over one rail while a spacious island adds a second shortcut row first")
+               && spacious.contentSize(for: spacious.expandedSize(module: .controls, shortcutCount: 10)).height
+                   == NotchLayout.cardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight,
+               "the home page is the card row over one rail; a compact island keeps its strip and scrolls to the rail")
         suite.expect(compact.contentSize(for: compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 0,
-                                                                   controlsHaveMusic: false)).height == NotchLayout.emptyHeight,
+                                                                   controlsHaveCards: false)).height == NotchLayout.emptyHeight,
                "hiding every control leaves the empty-state guidance its own row")
         for width in [360.0, 480.0, 600.0] {
             for height in [NotchSize.heightRange.lowerBound, 640.0] {
@@ -2762,7 +2776,7 @@ enum NotchTests {
                 for shortcuts in 0...12 {
                     for (sliders, music) in (0...3).flatMap({ sliders in [(sliders, false), (sliders, true)] }) {
                         let size = geometry.expandedSize(module: .controls, shortcutCount: shortcuts, sliderCount: sliders,
-                                                         controlsHaveMusic: music)
+                                                         controlsHaveCards: music)
                         let content = geometry.contentSize(for: size)
                         // The levels sit in the top row; three beside a camera take a row below it.
                         let band = NotchBand(geometry: geometry, contentWidth: geometry.contentWidth)
@@ -3617,16 +3631,7 @@ enum NotchTests {
         suite.expect(countdownFor([event("edge", hour, hour + 60)])?.event.id == "edge"
                      && countdownFor([event("outside", hour + 1, hour + 61)]) == nil,
                      "the countdown appears only in the hour before a start")
-        suite.expect(NotchCalendarSupport.tileEvent(entries, now: now) == later
-                     && NotchCalendarSupport.tileEvent([allDay, current, tomorrow], now: now) == tomorrow
-                     && NotchCalendarSupport.tileEvent([allDay, current], now: now) == nil,
-                     "the Controls tile names the next timed start at any distance, past ongoing and all-day events")
-        suite.expect(NotchCalendarSupport.tileEvent([later], now: later.start) == nil,
-                     "an appointment leaves the tile once it starts")
-        let sixDays = event("in six days", 6 * 86_400, 6 * 86_400 + 600)
-        suite.expect(NotchCalendarSupport.tileEvent([sixDays], now: now) == sixDays
-                     && NotchCalendarSupport.tileEvent([event("next week", 8 * 86_400, 8 * 86_400 + 600)], now: now) == nil,
-                     "the tile stops at the week read, where its weekday cannot be mistaken for this week's")
+        timelineContracts(suite, event: event, now: now)
         suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
                      && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
@@ -3716,13 +3721,54 @@ enum NotchTests {
         func start(day: Int, hour: Int, minute: Int = 0) -> Date {
             calendar.date(from: DateComponents(year: 2026, month: 3, day: day, hour: hour, minute: minute))!
         }
-        let british = Locale(identifier: "en_GB")
-        suite.expect(NotchCalendarSupport.tileStartText(start(day: 9, hour: 10, minute: 30), now: start(day: 9, hour: 9),
-                                                        locale: british, calendar: calendar) == "10:30"
-                     && NotchCalendarSupport.tileStartText(start(day: 10, hour: 9), now: start(day: 9, hour: 9),
-                                                           locale: british, calendar: calendar) == "Tue 09:00",
-                     "the tile reads a start today as its time and adds the weekday for a later day, in the calendar's zone")
         calendarMonthContracts(suite)
+    }
+
+    /// The Controls page's calendar: four hours with now in the middle,
+    /// events that start together side by side and one that starts during
+    /// another stepped in over it, as in the layout the page was designed to.
+    private static func timelineContracts(_ suite: TestSuite,
+                                          event: (String, Double, Double, Bool) -> NotchCalendarEvent,
+                                          now: Date) {
+        let window = NotchCalendarTimeline.window(now: now)
+        suite.expect(window.duration == 4 * 3600 && NotchCalendarTimeline.position(of: now, in: window) == 0.5,
+               "the timeline shows four hours with now exactly in the middle")
+        let marks = NotchCalendarTimeline.hourMarks(now: now)
+        suite.expect((4...5).contains(marks.count) && marks.allSatisfy { (0...1).contains($0.position) }
+                     && zip(marks, marks.dropFirst()).allSatisfy { $1.date.timeIntervalSince($0.date) == 3600 },
+               "the hour lines are the whole hours inside the window, an hour apart")
+
+        let minute = 60.0
+        let founders = event("founders", -130 * minute, 14 * minute, false)
+        let tutoring = event("tutoring", -70 * minute, 74 * minute, false)
+        let calculus = event("calculus", -10 * minute, 65 * minute, false)
+        let midterm = event("midterm", -10 * minute, 65 * minute, false)
+        let office = event("office", 74 * minute, 134 * minute, false)
+        let gym = event("gym", 74 * minute, 134 * minute, false)
+        let placed = NotchCalendarTimeline.placements([gym, midterm, founders, office, calculus, tutoring], now: now)
+        func place(_ id: String) -> NotchCalendarTimeline.Placement? { placed.first { $0.event.id == id } }
+        suite.expect(place("founders")?.depth == 0 && place("tutoring")?.depth == 1
+                     && place("calculus")?.depth == 2 && place("midterm")?.depth == 2,
+               "an event that starts while others are on is stepped in once over each")
+        suite.expect(place("calculus")?.columns == 2 && place("midterm")?.columns == 2
+                     && Set([place("calculus")?.column, place("midterm")?.column]) == [0, 1],
+               "events that start together share the width side by side")
+        suite.expect(place("office")?.depth == 0 && place("gym")?.depth == 0 && place("office")?.columns == 2,
+               "once the earlier events have ended, the next ones are back at the edge")
+        suite.expect(place("founders")?.top == 0 && place("gym")?.bottom == 1,
+               "events running past the window's edges are cut at them")
+
+        let allDay = event("all day", -3600, 20 * 3600, true)
+        let earlier = event("earlier", -5 * 3600, -3 * 3600, false)
+        let later = event("later", 3 * 3600, 4 * 3600, false)
+        suite.expect(NotchCalendarTimeline.placements([allDay, earlier, later], now: now).isEmpty,
+               "all-day events and events outside the four hours are not on the timeline")
+
+        suite.expect(NotchControlItem.batteries.isWidget && NotchControlItem.music.isWidget
+                     && NotchControlItem.calendar.isCard && !NotchControlItem.calendar.isWidget
+                     && NotchSupport.controlShortcuts([.music, .calendar, .batteries, .timer, .volume]) == [.timer]
+                     && NotchSupport.controlsHaveCards([.calendar]) && !NotchSupport.controlsHaveCards([.timer]),
+               "music and the batteries stack as widgets, the calendar draws beside them and only the rest are tiles")
     }
 
     /// Events chosen from their menu in the island, with the countdown for

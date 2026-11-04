@@ -27,6 +27,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
     @AppStorage(DefaultsKey.notchHermesChatEnabled) private var hermesChatEnabled = false
     @AppStorage(DefaultsKey.notchInstinctChatEnabled) private var instinctChatEnabled = false
+    @AppStorage(DefaultsKey.notchSiriChatEnabled) private var siriChatEnabled = false
+    @AppStorage(DefaultsKey.notchMuseChatEnabled) private var museChatEnabled = false
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchBrowserCovers) private var browserCovers = false
@@ -43,6 +45,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = false
     @AppStorage(DefaultsKey.notchShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.notchHermesChatShortcutEnabled) private var agentShortcutEnabled = true
+    @AppStorage(DefaultsKey.notchCalculatorShortcutEnabled) private var calculatorShortcutEnabled = true
     @AppStorage(DefaultsKey.notchShortcutKeepsOpen) private var shortcutKeepsOpen = false
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
@@ -395,7 +399,7 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .calculator].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -536,8 +540,15 @@ struct NotchSettings: View {
                 .toggleStyle(TrailingSwitchToggleStyle())
         case .instinctChat:
             NotchInstinctChatSettingsControls()
+        case .siriChat:
+            NotchSiriChatSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .museChat:
+            NotchMuseChatSettingsControls()
+                .toggleStyle(TrailingSwitchToggleStyle())
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:
+            if let agent = module.messagesAgent { NotchInstinctChatSettingsControls(agent: agent) }
+        case .mixer, .system, .tools, .calculator:
             EmptyView()
         }
     }
@@ -674,6 +685,38 @@ struct NotchSettings: View {
                     }
                     switchRow("pin", editor.shortcutKeepsOpen, caption: editor.shortcutKeepsOpenHint,
                               isOn: $shortcutKeepsOpen)
+                }
+                if notch.modules.contains(.calculator) {
+                    switchRow(NotchModule.calculator.symbol, FeatureStrings.notch(l10n.language).calculator,
+                              isOn: $calculatorShortcutEnabled)
+                        .onChange(of: calculatorShortcutEnabled) { _, _ in NotchService.shared.syncCalculatorShortcut() }
+                    if calculatorShortcutEnabled {
+                        ShortcutPreferenceRow(role: .calculator) { NotchService.shared.syncCalculatorShortcut() }
+                            .padding(.leading, settingsRowTextInset)
+                        if notch.calculatorShortcutRegistrationFailed {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .padding(.leading, settingsRowTextInset)
+                        }
+                    }
+                }
+                // One shortcut for every agent: it opens the one at the top of
+                // the chat screen's sidebar.
+                if notch.modules.contains(where: \.isAgentChat) {
+                    switchRow("bubble.left.and.bubble.right", FeatureStrings.notch(l10n.language).agentChat,
+                              isOn: $agentShortcutEnabled)
+                        .onChange(of: agentShortcutEnabled) { _, _ in NotchService.shared.syncAgentShortcut() }
+                    if agentShortcutEnabled {
+                        ShortcutPreferenceRow(role: .agentChat) { NotchService.shared.syncAgentShortcut() }
+                            .padding(.leading, settingsRowTextInset)
+                        if notch.agentShortcutRegistrationFailed {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .padding(.leading, settingsRowTextInset)
+                        }
+                    }
                 }
                 SettingsFeatureSwitchRow(symbol: "hand.draw", title: FeatureStrings.notchGestures(l10n.language).title,
                                          caption: gesturesEnabled ? FeatureStrings.notchGestures(l10n.language).hint : nil,
@@ -861,7 +904,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .controls, .music, .captures, .system, .calculator: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf
@@ -876,6 +919,9 @@ struct NotchSettings: View {
         case .watch: return .notchWatch
         case .hermesChat: return .notchHermesChat
         case .instinctChat: return .notchInstinctChat
+        case .siriChat: return .notchSiriChat
+        case .museChat: return .notchMuseChat
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return .notchInstinctChat
         }
     }
 
@@ -1051,6 +1097,9 @@ struct NotchSettings: View {
                 && (module != .agents || agentsEnabled) && (module != .watch || watchEnabled)
                 && (module != .hermesChat || hermesChatEnabled)
                 && (module != .instinctChat || instinctChatEnabled)
+                && (module != .siriChat || siriChatEnabled)
+                && (module != .museChat || museChatEnabled)
+                && (module.messagesAgent.map { UserDefaults.standard.bool(forKey: $0.enabledKey) } ?? true)
                 && !hidden.split(separator: ",").contains(Substring(module.rawValue))
         } set: { shown in
             if module == .timer { timerEnabled = shown }
@@ -1061,6 +1110,9 @@ struct NotchSettings: View {
             if module == .watch { watchEnabled = shown }
             if module == .hermesChat { hermesChatEnabled = shown }
             if module == .instinctChat { instinctChatEnabled = shown }
+            if module == .siriChat { siriChatEnabled = shown }
+            if module == .museChat { museChatEnabled = shown }
+            if let agent = module.messagesAgent { UserDefaults.standard.set(shown, forKey: agent.enabledKey) }
             var values = Set(hidden.split(separator: ",").map(String.init))
             if shown { values.remove(module.rawValue) } else { values.insert(module.rawValue) }
             hidden = values.sorted().joined(separator: ",")

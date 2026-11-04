@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 /// The island's conversation with VERTUS, held while the feature is on.
@@ -18,17 +19,50 @@ import Foundation
 /// transport; the transcript, the turn and the attention it asks for work the
 /// same way on both.
 ///
+/// The Siri page (`siri`) is the island's own assistant, on Apple's language
+/// models with tools of its own (calendar, reminders, weather, timers,
+/// volume, apps, links, Shortcuts). It is not Apple's Siri AI app.
+///
 /// Main thread only, like the island it belongs to. The client reads on a
 /// queue of its own and answers here on the main thread.
 final class NotchHermesChatService: ObservableObject {
     /// Which conversation an instance carries.
-    enum Agent {
-        case vertus, instinct
+    enum Agent: Equatable, Hashable {
+        case vertus, instinct, siri
+        /// Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
+        case muse
+        /// An iMessage agent beside Instinct, working exactly as Instinct does.
+        case messages(NotchMessagesAgent)
+
+        /// The agent a notice names ("vertus", "instinct", "siri").
+        var noticeName: String {
+            switch self {
+            case .vertus: return "vertus"
+            case .instinct: return "instinct"
+            case .siri: return "siri"
+            case .muse: return "muse"
+            case .messages(let agent): return agent.rawValue
+            }
+        }
+
+        init?(noticeName: String) {
+            switch noticeName {
+            case "vertus": self = .vertus
+            case "instinct": self = .instinct
+            case "siri": self = .siri
+            case "muse": self = .muse
+            default:
+                guard let agent = NotchMessagesAgent(rawValue: noticeName) else { return nil }
+                self = .messages(agent)
+            }
+        }
 
         var feature: AppFeature {
             switch self {
             case .vertus: return AppFeature.notchHermesChat
-            case .instinct: return AppFeature.notchInstinctChat
+            case .instinct, .messages: return AppFeature.notchInstinctChat
+            case .siri: return AppFeature.notchSiriChat
+            case .muse: return AppFeature.notchMuseChat
             }
         }
 
@@ -36,6 +70,9 @@ final class NotchHermesChatService: ObservableObject {
             switch self {
             case .vertus: return DefaultsKey.notchHermesChatEnabled
             case .instinct: return DefaultsKey.notchInstinctChatEnabled
+            case .siri: return DefaultsKey.notchSiriChatEnabled
+            case .muse: return DefaultsKey.notchMuseChatEnabled
+            case .messages(let agent): return agent.enabledKey
             }
         }
 
@@ -43,6 +80,9 @@ final class NotchHermesChatService: ObservableObject {
             switch self {
             case .vertus: return .hermesChat
             case .instinct: return .instinctChat
+            case .siri: return .siriChat
+            case .muse: return .museChat
+            case .messages(let agent): return agent.module
             }
         }
 
@@ -50,52 +90,74 @@ final class NotchHermesChatService: ObservableObject {
             switch self {
             case .vertus: return DefaultsKey.notchHermesChatSpeakReplies
             case .instinct: return DefaultsKey.notchInstinctSpeakReplies
+            case .siri: return DefaultsKey.notchSiriSpeakReplies
+            case .muse: return DefaultsKey.notchMuseSpeakReplies
+            case .messages(let agent): return agent.speakRepliesKey
             }
         }
 
-        var shortcutEnabledKey: String {
-            switch self {
-            case .vertus: return DefaultsKey.notchHermesChatShortcutEnabled
-            case .instinct: return DefaultsKey.notchInstinctShortcutEnabled
-            }
-        }
 
-        var shortcutKey: String {
-            switch self {
-            case .vertus: return DefaultsKey.notchHermesChatShortcut
-            case .instinct: return DefaultsKey.notchInstinctShortcut
-            }
-        }
 
-        var shortcutDefault: GlobalShortcut {
-            switch self {
-            case .vertus: return .vertusChatDefault
-            case .instinct: return .instinctChatDefault
-            }
-        }
 
         var historyFile: String {
             switch self {
             case .vertus: return "vertus-chat.json"
             case .instinct: return "instinct-chat.json"
+            case .siri: return "siri-chat.json"
+            case .muse: return "muse-chat.json"
+            case .messages(let agent): return agent.historyFile
             }
         }
 
         /// Where the number this page texts is kept: Instinct's always, VERTUS's
-        /// once its Photon line is given.
-        var numberKey: String {
+        /// once its Photon line is given. Siri is never texted.
+        var numberKey: String? {
             switch self {
             case .vertus: return DefaultsKey.notchHermesChatNumber
             case .instinct: return DefaultsKey.notchInstinctNumber
+            case .siri, .muse: return nil
+            case .messages(let agent): return agent.numberKey
             }
         }
 
+        /// The number saved for this page, if it is texted at all.
+        var number: String? {
+            numberKey.flatMap { UserDefaults.standard.string(forKey: $0) }
+        }
+
         /// Instinct has no other way in than iMessage.
-        var messagesOnly: Bool { self == .instinct }
+        var messagesOnly: Bool {
+            if case .messages = self { return true }
+            return self == .instinct
+        }
     }
 
     static let shared = NotchHermesChatService(agent: .vertus)
     static let instinct = NotchHermesChatService(agent: .instinct)
+    static let siri = NotchHermesChatService(agent: .siri)
+    static let muse = NotchHermesChatService(agent: .muse)
+    /// One service per iMessage agent beside Instinct, made as they are.
+    private static let messagesServices: [NotchMessagesAgent: NotchHermesChatService] = Dictionary(
+        uniqueKeysWithValues: NotchMessagesAgent.allCases.map { ($0, NotchHermesChatService(agent: .messages($0))) })
+
+    static func messages(_ agent: NotchMessagesAgent) -> NotchHermesChatService {
+        messagesServices[agent] ?? instinct
+    }
+
+    /// The service an agent's page carries, if the page is an agent's.
+    static func service(for module: NotchModule) -> NotchHermesChatService? {
+        switch module {
+        case .hermesChat: return shared
+        case .instinctChat: return instinct
+        case .siriChat: return siri
+        case .museChat: return muse
+        default: return module.messagesAgent.map(messages)
+        }
+    }
+
+    /// Every iMessage agent's service beside Instinct, for the feature's
+    /// lifecycle and the history flush at quit.
+    static var allMessages: [NotchHermesChatService] { NotchMessagesAgent.allCases.map(messages) }
 
     let agent: Agent
 
@@ -125,6 +187,11 @@ final class NotchHermesChatService: ObservableObject {
         case needsFullDiskAccess
         /// Instinct's number has not been given yet.
         case noNumber
+        /// Apple's language model, which Siri runs on, is not available on
+        /// this Mac now; the text is why.
+        case assistantUnavailable(String)
+        /// Muse cannot be reached through its app now, for this reason.
+        case muse(MuseAppSupport.Problem)
     }
 
     @Published private(set) var state: State = .off
@@ -165,8 +232,7 @@ final class NotchHermesChatService: ObservableObject {
 
     /// What carries the conversation now, from the number in Settings.
     var transport: InstinctMessagesSupport.Transport {
-        InstinctMessagesSupport.transport(messagesOnly: agent.messagesOnly,
-                                          number: UserDefaults.standard.string(forKey: agent.numberKey))
+        InstinctMessagesSupport.transport(messagesOnly: agent.messagesOnly, number: agent.number)
     }
 
     /// The page shows an iMessage thread (Instinct's, or VERTUS's Photon
@@ -217,6 +283,10 @@ final class NotchHermesChatService: ObservableObject {
     @Published var dropTargeted = false
     @Published var replyTarget: UUID?
     @Published private(set) var reply = ""
+    /// What Siri says it is doing while it works ("Checking your calendar").
+    @Published private(set) var status: String?
+    /// Cards Siri's tools showed during the turn, for the answer that ends it.
+    private var pendingCards: [NotchHermesChatMessage.Card] = []
     /// Reasoning Hermes streamed for this turn, shown dimmed above the reply.
     @Published private(set) var thinking = ""
     /// A turn is outstanding: the page shows a stop button and a live mark.
@@ -258,46 +328,23 @@ final class NotchHermesChatService: ObservableObject {
     /// is not fetched back.
     private let watchCursor = VertusWatchCursor()
 
-    /// ⇧⌘K (VERTUS) or ⇧⌘L (Instinct) by default: opens the island on
-    /// this page.
-    private let hotkey: QuickToolHotkey
-    @Published private(set) var shortcutRegistrationFailed = false
-
     private init(agent: Agent) {
         self.agent = agent
         historyStore = NotchHermesChatHistoryStore(fileName: InstinctMessagesSupport.historyFile(
             base: agent.historyFile,
             transport: InstinctMessagesSupport.transport(
-                messagesOnly: agent.messagesOnly,
-                number: UserDefaults.standard.string(forKey: agent.numberKey))))
-        switch agent {
-        case .vertus:
-            hotkey = QuickToolHotkey(id: 82)
-            hotkey.onPress = { NotchService.shared.showHermesChat(toggle: true) }
-        case .instinct:
-            hotkey = QuickToolHotkey(id: 83)
-            hotkey.onPress = { NotchService.shared.showInstinctChat(toggle: true) }
-        }
+                messagesOnly: agent.messagesOnly, number: agent.number)))
     }
 
-    /// Registers the page's shortcut while the feature, its switch and the
-    /// island are on; anything else releases it.
-    func syncShortcut() {
-        let defaults = UserDefaults.standard
-        let enabled = agent.feature.isAvailable && AppFeature.notch.isAvailable
-            && defaults.bool(forKey: agent.enabledKey)
-            && defaults.bool(forKey: agent.shortcutEnabledKey)
-        let shortcut = GlobalShortcut.saved(for: agent.shortcutKey, fallback: agent.shortcutDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
-                                                  storageKey: agent.shortcutKey)
-    }
-
-    /// The page's words: VERTUS's, or the same page naming Instinct.
+    /// The page's words: VERTUS's, or the same page naming Instinct or Siri.
     func strings(_ language: AppLanguage) -> NotchHermesChatStrings {
         let words = FeatureStrings.notchHermesChat(language)
         switch agent {
         case .vertus: return words
         case .instinct: return FeatureStrings.notchInstinctChat(language).chat(words)
+        case .siri: return FeatureStrings.notchSiriChat(language).chat(words)
+        case .muse: return FeatureStrings.notchMuseChat(language).chat(words)
+        case .messages(let agent): return FeatureStrings.notchInstinctChat(language).named(agent.name).chat(words)
         }
     }
 
@@ -308,7 +355,6 @@ final class NotchHermesChatService: ObservableObject {
     /// Follows the feature's availability, the switch, and the command in
     /// Settings. Called by the feature runtime and by the settings controls.
     func syncWithPreferences() {
-        syncShortcut()
         followHistoryFile()
         if agent.feature.isAvailable,
            UserDefaults.standard.bool(forKey: agent.enabledKey) { restoreHistory() }
@@ -350,6 +396,8 @@ final class NotchHermesChatService: ObservableObject {
         if state != .off { state = .off }
         // The transcript stays: only Clear Conversation empties it.
         if !reply.isEmpty { reply = "" }
+        pendingCards = []
+        if status != nil { status = nil }
         if !thinking.isEmpty { thinking = "" }
         if working { working = false }
         if !approvals.isEmpty { approvals = [] }
@@ -374,6 +422,14 @@ final class NotchHermesChatService: ObservableObject {
     private func connect() {
         guard agent.feature.isAvailable, AppFeature.notch.isAvailable else { return }
         let home = FileManager.default.homeDirectoryForCurrentUser
+        if agent == .siri {
+            connectToSiri()
+            return
+        }
+        if agent == .muse {
+            connectToMuse()
+            return
+        }
         switch transport {
         case .messages(let number):
             connectToMessages(home: home, number: number)
@@ -449,6 +505,78 @@ final class NotchHermesChatService: ObservableObject {
         }
         self.client = client
         client.start()
+    }
+
+
+    /// Siri, the island's own assistant on Apple's language model. It starts
+    /// from the saved conversation, so it knows what was said before.
+    private func connectToSiri() {
+        if let reason = SiriAssistantAvailability.unavailableReason() {
+            state = .failed(.assistantUnavailable(reason))
+            return
+        }
+        if state != .connecting { state = .connecting }
+        let current = UUID()
+        generation = current
+        let client = NotchSiriAssistantClient(history: messages) { [weak self] event in
+            guard let self, self.generation == current else { return }
+            self.handle(event)
+        }
+        self.client = client
+        client.start()
+    }
+
+    /// Muse, through the Muse for Mac app: its window is read as it changes,
+    /// and a message is pasted into it. The saved conversation tells the
+    /// client when each message in Muse's window was first seen.
+    private func connectToMuse() {
+        if state != .connecting { state = .connecting }
+        let current = UUID()
+        generation = current
+        let module = agent.module
+        let client = NotchMuseAppClient(history: messages, returnToIsland: {
+            // Muse came forward to take the message and the island folded;
+            // it opens again on the page the message was typed on.
+            NotchService.shared.open(module, takeFocus: true)
+        }) { [weak self] event in
+            guard let self, self.generation == current else { return }
+            self.handle(event)
+        }
+        self.client = client
+        client.start()
+    }
+
+    /// Brings the Muse app forward, opening it if it is not running: where
+    /// the person signs in, answers what Muse asks, or opens its window.
+    func openMuseApp() {
+        guard agent == .muse,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: MuseAppSupport.bundleIdentifier)
+        else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        if client == nil, agent.feature.isAvailable, UserDefaults.standard.bool(forKey: agent.enabledKey) { connect() }
+    }
+
+    /// A button on one of Siri's cards (Send on an email it drafted). The card
+    /// stops offering its buttons at once, so a second tap sends nothing more.
+    func pressCardButton(_ action: String, button: String) {
+        guard agent == .siri else { return }
+        settleCard(action, result: nil)
+        if client == nil { connect() }
+        guard let client else {
+            settleCard(action, result: "No longer available")
+            return
+        }
+        client.perform(action: action, button: button)
+    }
+
+    /// Takes a card's buttons away and, once it is done, says how it went.
+    private func settleCard(_ action: String, result: String?) {
+        guard let index = messages.lastIndex(where: { $0.cards?.contains { $0.action == action } == true }),
+              var cards = messages[index].cards,
+              let card = cards.firstIndex(where: { $0.action == action }) else { return }
+        cards[card].buttons = []
+        if let result { cards[card].lines.append(result) }
+        messages[index].cards = cards
     }
 
     // MARK: Sending
@@ -534,6 +662,9 @@ final class NotchHermesChatService: ObservableObject {
         thinking = ""
         heldMessage = nil
         unconfirmed = []
+        pendingCards = []
+        // Siri keeps the conversation in its model session: it starts over too.
+        client?.startOver()
     }
 
     // MARK: Events
@@ -596,6 +727,20 @@ final class NotchHermesChatService: ObservableObject {
             fail(.unreachable(reason))
         case .needsFullDiskAccess:
             fail(.needsFullDiskAccess)
+        case .museProblem(let problem):
+            // The client keeps watching Muse: once the problem is gone it
+            // reports the conversation and the page is ready again.
+            reactOutsideConversation(.confused)
+            if working { working = false }
+            commitReply()
+            state = .failed(.muse(problem))
+        case .status(let words):
+            if status != words { status = words }
+        case .card(let card):
+            // Shown with the answer it belongs to, once that answer is whole.
+            pendingCards.append(card)
+        case .cardDone(let action, let result):
+            settleCard(action, result: result)
         case .thread(let thread):
             threadArrived = true
             unconfirmed = []
@@ -651,6 +796,9 @@ final class NotchHermesChatService: ObservableObject {
             return
         }
         lastAnswer = message.date
+        // A reply streamed while it was written (Siri's) is now whole.
+        if !reply.isEmpty { reply = "" }
+        if status != nil { status = nil }
         append(message)
         guard working else { return }
         completedReplies += 1
@@ -678,6 +826,7 @@ final class NotchHermesChatService: ObservableObject {
         }
         reply = ""
         thinking = ""
+        if status != nil { status = nil }
         if working { working = false }
         if let held = heldMessage {
             heldMessage = nil
@@ -710,13 +859,16 @@ final class NotchHermesChatService: ObservableObject {
         case .notFound(let command): return text.notFound(command)
         case .messagesToolMissing(let command):
             // Instinct's page words its own; VERTUS's says texting needs it.
-            return agent == .instinct ? text.notFound(command)
+            return agent.messagesOnly ? text.notFound(command)
                 : String(format: text.messagesToolMissingFormat, command)
         case .unreachable(let reason): return text.unreachable(reason)
         case .needsFullDiskAccess:
             let app = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? AppInfo.name
             return FeatureStrings.notchInstinctChat(language).fullDiskAccess(app)
         case .noNumber: return FeatureStrings.notchInstinctChat(language).noNumber
+        case .assistantUnavailable(let reason):
+            return String(format: FeatureStrings.notchSiriChat(language).unavailableFormat, reason)
+        case .muse(let problem): return FeatureStrings.notchMuseChat(language).problem(problem)
         }
     }
 
@@ -735,8 +887,10 @@ final class NotchHermesChatService: ObservableObject {
     private func commitReply() {
         let words = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         reply = ""
-        guard !words.isEmpty else { return }
-        append(NotchHermesChatMessage(role: .hermes, text: words))
+        let cards = pendingCards
+        pendingCards = []
+        guard !words.isEmpty || !cards.isEmpty else { return }
+        append(NotchHermesChatMessage(role: .hermes, text: words, cards: cards.isEmpty ? nil : cards))
     }
 
     /// The island's own turn ended and took its unanswered approvals with it:
@@ -795,7 +949,7 @@ final class NotchHermesChatService: ObservableObject {
         let onScreen = notch.expanded && notch.selected == agent.module
             && !(notch.showingSections || notch.showingAppPanel || notch.showingCommandBar)
         guard !onScreen else { return }
-        let name = agent == .vertus ? "vertus" : "instinct"
+        let name = agent.noticeName
         notch.show(NotchNotice(event: .agents, title: NotchAgentReplySupport.noticeName(name), detail: "",
                                symbol: agent.module.symbol, chatAgent: name))
     }

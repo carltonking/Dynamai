@@ -4,6 +4,9 @@
 import AppKit
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
+// Before anything reads a preference: the settings may still be filed under
+// the identity the app had before it was renamed Dynamai.
+IdentityMigration.runIfNeeded()
 Defaults.register()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()

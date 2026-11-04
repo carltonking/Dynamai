@@ -12,7 +12,15 @@ enum MicMuteSupport {
     /// not a microphone, and muting one would silence the very thing it is
     /// rendering or reading; a private aggregate is still listed to the
     /// process that created it, so every device list skips them by name.
-    static let ownDeviceNames: Set<String> = ["Vorssaint Mixer", "Vorssaint AirPlay", "Vorssaint Island Levels",
+    static let mixerDeviceName = "Dynamai Mixer"
+    static let airPlayDeviceName = "Dynamai AirPlay"
+    static let islandLevelsDeviceName = "Dynamai Island Levels"
+    static let recorderDeviceName = "Dynamai Recorder"
+    /// The names before the app became Dynamai, so a device an older build
+    /// left behind is still never treated as a microphone.
+    static let ownDeviceNames: Set<String> = [mixerDeviceName, airPlayDeviceName, islandLevelsDeviceName,
+                                              recorderDeviceName,
+                                              "Vorssaint Mixer", "Vorssaint AirPlay", "Vorssaint Island Levels",
                                               "Vorssaint Recorder"]
 
     /// The level a device falls back to when nothing was ever saved for it:

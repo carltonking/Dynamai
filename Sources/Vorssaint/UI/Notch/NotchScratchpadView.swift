@@ -51,8 +51,36 @@ struct NotchScratchpadView: View {
                         resolveEmbed: { pad.embedURL(for: $0) }) { view in
             view.insertionPointColor = .white
             editor.view = view
+            installTitle(in: view)
             DispatchQueue.main.async { focusEditor() }
         }
+    }
+
+    /// The note itself: the editor, with the note's name as its title, or
+    /// its formatted reading.
+    private var notePage: some View {
+        ZStack(alignment: .topLeading) {
+            textEditor
+            .opacity(pad.isPreviewing ? 0 : 1)
+            .allowsHitTesting(!pad.isPreviewing)
+            .accessibilityHidden(pad.isPreviewing)
+            if pad.isPreviewing {
+                MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
+                                baseSize: textSize,
+                                taskStates: (done: text.taskDone, notDone: text.taskNotDone),
+                                onToggleTask: { pad.toggleTask(box: $0, through: editor.view) })
+            } else if pad.text.isEmpty {
+                Text(text.placeholder)
+                    .font(.system(size: textSize))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .padding(.leading, Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
+                    .padding(.top, Self.editorInset.height + titleHeight)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .modifier(NotchControlSurface(cornerRadius: 12, interactive: false))
     }
 
     var body: some View {
@@ -73,28 +101,7 @@ struct NotchScratchpadView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    ZStack(alignment: .topLeading) {
-                        textEditor
-                        .opacity(pad.isPreviewing ? 0 : 1)
-                        .allowsHitTesting(!pad.isPreviewing)
-                        .accessibilityHidden(pad.isPreviewing)
-                        if pad.isPreviewing {
-                            MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
-                                            baseSize: textSize,
-                                            taskStates: (done: text.taskDone, notDone: text.taskNotDone),
-                                            onToggleTask: { pad.toggleTask(box: $0, through: editor.view) })
-                        } else if pad.text.isEmpty {
-                            Text(text.placeholder)
-                                .font(.system(size: textSize))
-                                .foregroundStyle(.white.opacity(0.35))
-                                .padding(.leading, Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
-                                .padding(.top, Self.editorInset.height)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .modifier(NotchControlSurface(cornerRadius: 12, interactive: false))
+                    notePage
                 }
             }
         }
@@ -109,6 +116,9 @@ struct NotchScratchpadView: View {
         // here, rather than leaving the page on the error until it reopens.
         .onChange(of: pad.vaultPath) { _, _ in loadFailed = !pad.loadForEmbedding() }
         .onDisappear { pad.commitEdits() }
+        .onChange(of: textSize) { _, _ in
+            if let view = editor.view { installTitle(in: view) }
+        }
         .onChange(of: pad.selectedPadID) { _, _ in
             DispatchQueue.main.async { focusEditor() }
         }
@@ -335,10 +345,31 @@ struct NotchScratchpadView: View {
 
     /// The caret lands at the end of the pad's text, as the floating pad
     /// puts it after a tab change.
-    private func focusEditor() {
+    private var titleFontSize: CGFloat { (textSize * 1.75).rounded() }
+    private var titleHeight: CGFloat { (titleFontSize * 1.3).rounded() + 12 }
+
+    /// The note's name above its first line, scrolling away with the text as
+    /// Obsidian's inline title does.
+    private func installTitle(in view: NSTextView) {
+        guard let live = view as? ScratchpadLiveTextView else { return }
+        let title = NotchScratchpadTitleField(fontSize: titleFontSize,
+                                              label: text.renamePad,
+                                              inset: Self.editorInset.width + PlainTextEditor.lineFragmentPadding,
+                                              onFinish: { focusEditor(atStart: true) })
+        if let host = live.header as? NSHostingView<NotchScratchpadTitleField> {
+            host.rootView = title
+            live.setHeader(host, height: titleHeight)
+        } else {
+            live.setHeader(NSHostingView(rootView: title), height: titleHeight)
+        }
+    }
+
+    /// Return in the title goes to the note's first line instead, as in
+    /// Obsidian.
+    private func focusEditor(atStart: Bool = false) {
         guard !pad.isPreviewing, let view = editor.view, let window = view.window, window.isKeyWindow else { return }
         window.makeFirstResponder(view)
-        let end = NSRange(location: (view.string as NSString).length, length: 0)
+        let end = NSRange(location: atStart ? 0 : (view.string as NSString).length, length: 0)
         view.setSelectedRange(end)
         view.scrollRangeToVisible(end)
     }
@@ -363,5 +394,62 @@ struct NotchScratchpadView: View {
     private func requestClose(_ entry: ScratchpadPad) {
         guard pad.canClosePad else { return }
         _ = pad.closePad(entry.id)
+    }
+}
+
+/// The note's name at the top of its page, as Obsidian's inline title: the
+/// file name, edited in place. A rename happens when editing ends, never per
+/// keystroke, since each one moves the file in the vault. Escape, or a name
+/// the vault refuses, puts the current name back. It watches the pads itself
+/// because it lives in the editor's text view, outside this page's updates.
+struct NotchScratchpadTitleField: View {
+    let fontSize: CGFloat
+    let label: String
+    let inset: CGFloat
+    let onFinish: () -> Void
+    @ObservedObject private var pad = ScratchpadService.shared
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    private var selected: ScratchpadPad? { pad.pads.first { $0.id == pad.selectedPadID } }
+    private var name: String { selected?.name ?? "" }
+
+    var body: some View {
+        TextField(label, text: $draft)
+            .textFieldStyle(.plain)
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .focused($focused)
+            .padding(.horizontal, inset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.bottom, 4)
+            .accessibilityLabel(label)
+            .onAppear { draft = name }
+            .onChange(of: name) { _, current in draft = current }
+            .onChange(of: pad.selectedPadID) { _, _ in draft = name }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            .onSubmit {
+                commit()
+                onFinish()
+            }
+            .onExitCommand {
+                draft = name
+                onFinish()
+            }
+    }
+
+    private func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let id = selected?.id, !trimmed.isEmpty, trimmed != name else {
+            draft = name
+            return
+        }
+        pad.renamePad(id, to: trimmed)
+        // A refused name leaves the note's name unchanged, so no change
+        // arrives to reset the field; put back whatever the note is called.
+        draft = name
     }
 }

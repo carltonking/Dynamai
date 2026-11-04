@@ -7,13 +7,25 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, hermesChat, instinctChat
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, hermesChat, instinctChat, siriChat
+    // Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
+    case museChat
+    // The iMessage agents beside Instinct, one page each (`NotchMessagesAgent`).
+    case saunaChat, rhoChat, caddyChat, reneChat, irisChat, folkChat, maverickChat
+    /// LaTeX and keyboard arithmetic, answered as it is typed.
+    case calculator
     var id: String { rawValue }
 
-    /// A conversation with an agent (VERTUS, Instinct). Each opens from a
-    /// shortcut of its own, so the island's shortcut switches away from it
-    /// rather than closing it, and never reopens onto it.
-    var isAgentChat: Bool { self == .hermesChat || self == .instinctChat }
+    /// A conversation with an agent (VERTUS, Instinct, Siri). Each opens
+    /// from a shortcut of its own, so the island's shortcut switches away
+    /// from it rather than closing it, and never reopens onto it.
+    var isAgentChat: Bool {
+        self == .hermesChat || self == .instinctChat || self == .siriChat || self == .museChat
+            || messagesAgent != nil
+    }
+
+    /// The iMessage agent this page talks to, beside Instinct.
+    var messagesAgent: NotchMessagesAgent? { NotchMessagesAgent.agent(for: self) }
 
     var symbol: String {
         switch self {
@@ -38,6 +50,10 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "eye"
         case .hermesChat: return "bubble.left.and.bubble.right"
         case .instinctChat: return "message"
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return "message"
+        case .siriChat: return "sparkle"
+        case .calculator: return "function"
+        case .museChat: return "bubble.left"
         }
     }
 
@@ -62,6 +78,12 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "o"
         case .hermesChat: return "h"
         case .instinctChat: return "x"
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return messagesAgent?.shortcutKey ?? ""
+        case .siriChat: return "y"
+        // Every letter has a page; = is the calculator's sign.
+        case .calculator: return "="
+        // Every letter is a page's already.
+        case .museChat: return ";"
         }
     }
 
@@ -87,6 +109,11 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .hermesChat: return AppFeature.notchHermesChat.isAvailable(in: defaults)
         case .instinctChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
+        // Instinct's feature carries every iMessage agent.
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
+        case .siriChat: return AppFeature.notchSiriChat.isAvailable(in: defaults)
+        case .calculator: return true
+        case .museChat: return AppFeature.notchMuseChat.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower, .fanControl, .connectedDevices].contains { (feature: AppFeature) in
@@ -285,9 +312,13 @@ enum NotchLayout {
     /// detail, a hosted utility) still get a readable page inside a preset.
     static let pageContentHeight: CGFloat = 320
     static let rowSpacing: CGFloat = 10
-    /// The home page's card row: the player's 56-point cover inside its padding.
-    static let cardHeight: CGFloat = 80
-    static let minimumCardHeight: CGFloat = 68
+    /// The home page's card row: the widget stack, square, beside the
+    /// calendar's four hours. Short enough to share a spacious island with a
+    /// row of shortcuts; below the minimum an hour of the calendar is too
+    /// short to read an event's title and time.
+    static let cardHeight: CGFloat = 180
+    static let minimumCardHeight: CGFloat = 150
+    static let cardSpacing: CGFloat = 16
     /// A level in the island's top row at its narrowest: its glyph and a
     /// slider still long enough to set it.
     static let bandLevelMinimumWidth: CGFloat = 76
@@ -625,6 +656,10 @@ enum NotchLayout {
             rows = railRows(count: shortcutCount,
                             perRow: railCapacity(width: width, itemWidth: shortcutWidth, spacing: shortcutSpacing),
                             rowHeight: shortcutHeight, spacing: shortcutSpacing, height: remaining)
+            // The card row never pushes the shortcuts off the page: beside it
+            // they keep one rail, which scrolls sideways if it must, and the
+            // page scrolls down to it where the strip is too short for both.
+            if hasCards { rows = max(1, rows) }
             // A rail that would scroll sideways closes its rows as it closes
             // its columns, to take the row it is a few points short of; one
             // that fits keeps its rows and gaps.
@@ -1288,12 +1323,18 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad, batteries
     static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
-    /// A level draws as a slider in the card row; everything else is a tile.
+    /// A level draws as a slider in the island's top row.
     var isLevel: Bool { self == .volume || self == .brightness || self == .keyboardLight }
+    /// Music and the batteries are widgets, stacked and swiped through as
+    /// Apple's Smart Stack is, in their order in the controls list.
+    var isWidget: Bool { self == .music || self == .batteries }
+    /// What the card row draws: the widget stack, and the calendar as the
+    /// timeline beside it. Everything else is a shortcut tile.
+    var isCard: Bool { isWidget || self == .calendar }
 
     /// Whether this Mac has a keyboard light. Only the brightness service can
     /// ask the hardware, so launch points this at it before anything reads
@@ -1319,6 +1360,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        case .batteries: return "battery.100percent"
         }
     }
 
@@ -1338,6 +1380,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return .page(.music, feature: nil)
         case .timer: return .page(.timer, feature: .notchTimer)
         case .calendar: return .page(.calendar, feature: .notchCalendar)
+        case .batteries: return .feature(.monitorPower)
         }
     }
 
@@ -1358,6 +1401,8 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
         case .calendar: return NotchSupport.modules(in: defaults).contains(.calendar)
+        // The Mac's charge and its accessories' come from the power monitor.
+        case .batteries: return AppFeature.monitorPower.isAvailable(in: defaults)
         }
     }
 }
@@ -1855,6 +1900,44 @@ enum NotchSupport {
         holdsShortcut(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShortcutKeepsOpen)
     }
 
+    /// The sections gallery shows every agent's conversation as one tile, at
+    /// the place of the first, standing for the agent used last: the screen
+    /// it opens lists them all in its sidebar.
+    static func combiningAgentChats(_ modules: [NotchModule], last: NotchModule?) -> [NotchModule] {
+        let agents = modules.filter(\.isAgentChat)
+        guard let first = agents.first else { return modules }
+        let shown = last.flatMap { agents.contains($0) ? $0 : nil } ?? first
+        return modules.compactMap { module in
+            guard module.isAgentChat else { return module }
+            return module == first ? shown : nil
+        }
+    }
+
+    /// Command-1 to Command-9 choose the agent at that place in the chat
+    /// screen's sidebar. Read from the key's position rather than its
+    /// character, so the top row's numbers work on layouts that type them
+    /// with Shift, as French and Belgian AZERTY do.
+    static func agentChatShortcut(keyCode: UInt16) -> Int? {
+        let digits: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+                                     83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9]
+        return digits[keyCode]
+    }
+
+    /// The island's section order with the agents in `agents`' order, each
+    /// taking the place one of them held, so every other section stays put.
+    /// `order` is the saved order; sections it does not name follow in their
+    /// usual place, as `modules(in:)` reads them.
+    static func reorderingAgentChats(_ agents: [NotchModule], in order: [NotchModule]) -> [NotchModule] {
+        var seen = Set<NotchModule>()
+        var full = (order + NotchModule.allCases).filter { seen.insert($0).inserted }
+        let moving = Set(agents)
+        var next = agents.makeIterator()
+        for index in full.indices where moving.contains(full[index]) {
+            if let agent = next.next() { full[index] = agent }
+        }
+        return full
+    }
+
     static func modules(in defaults: UserDefaults = .standard) -> [NotchModule] {
         let hidden = Set((defaults.string(forKey: DefaultsKey.notchHiddenModules) ?? "")
             .split(separator: ",").map(String.init))
@@ -1871,6 +1954,9 @@ enum NotchSupport {
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
                 && ($0 != .hermesChat || defaults.bool(forKey: DefaultsKey.notchHermesChatEnabled))
                 && ($0 != .instinctChat || defaults.bool(forKey: DefaultsKey.notchInstinctChatEnabled))
+                && ($0.messagesAgent.map { defaults.bool(forKey: $0.enabledKey) } ?? true)
+                && ($0 != .siriChat || defaults.bool(forKey: DefaultsKey.notchSiriChatEnabled))
+                && ($0 != .museChat || defaults.bool(forKey: DefaultsKey.notchMuseChatEnabled))
         }
     }
 
@@ -1992,6 +2078,14 @@ enum NotchSupport {
             return .music
         }
         return choice == .music ? .none : choice
+    }
+
+    /// Whether the Controls page has its card row: a widget or the calendar.
+    static func controlsHaveCards(_ items: [NotchControlItem]) -> Bool { items.contains(where: \.isCard) }
+
+    /// The tiles under the card row.
+    static func controlShortcuts(_ items: [NotchControlItem]) -> [NotchControlItem] {
+        items.filter { !$0.isLevel && !$0.isCard }
     }
 
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {
@@ -2732,7 +2826,7 @@ struct NotchGeometry: Equatable {
     /// detail's measured content, which it fits instead of the whole page.
     func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
                       detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
-                      sliderCount: Int = 2, controlsHaveMusic: Bool = true, musicHasContent: Bool = true,
+                      sliderCount: Int = 2, controlsHaveCards: Bool = true, musicHasContent: Bool = true,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
@@ -2764,9 +2858,11 @@ struct NotchGeometry: Equatable {
                 let band = NotchBand(geometry: self, contentWidth: contentWidth)
                 let levelRow = NotchLayout.bandLevelCount(levels, band: band) < levels
                 let room = budget + (levelRow && layout != .custom ? NotchLayout.levelRowHeight + NotchLayout.rowSpacing : 0)
-                let home = NotchLayout.controls(hasCards: controlsHaveMusic, levelRow: levelRow,
+                let home = NotchLayout.controls(hasCards: controlsHaveCards, levelRow: levelRow,
                                                 shortcutCount: max(0, shortcutCount), width: contentWidth, height: room)
-                let empty = !controlsHaveMusic && sliderCount <= 0 && shortcutCount <= 0
+                let empty = !controlsHaveCards && sliderCount <= 0 && shortcutCount <= 0
+                // The island keeps to its strip; a page taller than that,
+                // the card row over a rail in a compact island, scrolls.
                 contentHeight = min(room, empty ? NotchLayout.emptyHeight : home.height)
             case .music:
                 let player = NotchLayout.musicPlayerHeight(band: musicBandHeight, playing: musicHasContent)
@@ -2787,7 +2883,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
-                 .hermesChat, .instinctChat:
+                 .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat, .calculator:
                 contentHeight = budget
             }
         }

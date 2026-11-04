@@ -787,10 +787,12 @@ enum UninstallerSupport {
         }
     }
 
-    /// Vorssaint's own identifiers, among the protected ones.
+    /// This app's own identifiers, among the protected ones, including those
+    /// it carried before it was renamed Dynamai.
     private static func isOwnBundleID(_ id: String) -> Bool {
         let lowered = id.lowercased()
-        return lowered == "com.vorssaint" || lowered.hasPrefix("com.vorssaint.")
+        return lowered == "com.dynamai" || lowered.hasPrefix("com.dynamai.")
+            || lowered == "com.vorssaint" || lowered.hasPrefix("com.vorssaint.")
             || lowered.hasPrefix("vorss.")
     }
 
