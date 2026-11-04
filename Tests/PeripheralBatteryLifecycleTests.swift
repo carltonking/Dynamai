@@ -29,6 +29,125 @@ enum PeripheralBatteryLifecycleTests {
         cancelledProfiler(suite)
         cancelledFastRead(suite)
         processCancellation(suite)
+        powerSourceParsing(suite)
+        powerSourcePrecedence(suite)
+        powerSourceNotifications(suite)
+    }
+
+    // Shaped like IOPSCopyPowerSourcesByType on macOS 27.2 with AirPods Pro
+    // connected: one group, a case and two buds reported separately.
+    private static func airPods(left: Int, right: Int, case casePercent: Int,
+                                rightCharging: Bool = false) -> [[String: Any]] {
+        let group = "3310B90C-8EAE-7C9B-B4BA-FCD5554E8DB5"
+        func part(_ id: String, _ name: String, _ partName: String?, _ percent: Int,
+                  _ category: String, charging: Bool = false) -> [String: Any] {
+            var description: [String: Any] = [
+                "Type": "Accessory Source", "Transport Type": "Bluetooth", "Is Present": true,
+                "Name": name, "Current Capacity": percent, "Max Capacity": 100,
+                "Is Charging": charging, "Accessory Category": category,
+                "Group Identifier": group, "Accessory Identifier": group, "Part Identifier": id,
+            ]
+            if let partName { description["Part Name"] = partName }
+            return description
+        }
+        return [
+            ["Type": "InternalBattery", "Name": "InternalBattery-0", "Current Capacity": 62,
+             "Max Capacity": 100, "Is Present": true, "Transport Type": "Internal"],
+            part("Case", "Carlton’s AirPods Pro Case", nil, casePercent, "Audio Battery Case"),
+            part("Left", "Carlton’s AirPods Pro", "Carlton’s AirPods Pro 🅛", left, "Headset"),
+            part("Right", "Carlton’s AirPods Pro", "Carlton’s AirPods Pro 🅡", right, "Headset",
+                 charging: rightCharging),
+        ]
+    }
+
+    private static func powerSourceParsing(_ suite: TestSuite) {
+        let paired = PeripheralBatterySupport.powerSourceBatteries(
+            from: airPods(left: 100, right: 96, case: 79, rightCharging: true))
+        let buds = paired.devices.first { $0.name == "Carlton’s AirPods Pro" }
+        let chargingCase = paired.devices.first { $0.name == "Carlton’s AirPods Pro Case" }
+        suite.expect(paired.devices.count == 2 && buds?.percent == 96 && buds?.isCharging == true
+                     && buds?.kind == .audio,
+                     "close buds fold into one row at the lower charge, charging if either is")
+        suite.expect(chargingCase?.percent == 79 && chargingCase?.kind == .audio,
+                     "the case keeps its own row, as Apple's Batteries widget shows it")
+        suite.expect(!paired.devices.contains { $0.name.hasPrefix("InternalBattery") },
+                     "the Mac's own battery stays with PowerSampler")
+
+        let apart = PeripheralBatterySupport.powerSourceBatteries(from: airPods(left: 90, right: 20, case: 50))
+        suite.expect(apart.devices.count == 3
+                     && apart.devices.contains { $0.name == "Carlton’s AirPods Pro 🅡" && $0.percent == 20 }
+                     && apart.devices.contains { $0.name == "Carlton’s AirPods Pro 🅛" && $0.percent == 90 },
+                     "buds far apart keep one row each, so a flat bud is not hidden")
+
+        let scaled = PeripheralBatterySupport.powerSourceBatteries(from: [[
+            "Type": "Accessory Source", "Name": "Magic Mouse", "Current Capacity": 1, "Max Capacity": 4,
+            "Accessory Category": "Mouse",
+        ]])
+        suite.expect(scaled.devices.first?.percent == 25 && scaled.devices.first?.kind == .mouse,
+                     "a capacity out of a non-100 maximum reads as a percentage")
+        suite.expect(PeripheralBatterySupport.powerSourceBatteries(from: [[
+            "Type": "Accessory Source", "Name": "Gone", "Current Capacity": 50, "Is Present": false,
+        ]]).devices.isEmpty, "an accessory the registry marks absent is not shown")
+        suite.expect(NotchAccessorySupport.symbol(for: .audio, name: "Carlton’s AirPods Pro Case")
+                     == "airpodspro.chargingcase.wireless",
+                     "the AirPods Pro case draws as a case, not as earbuds")
+    }
+
+    private static func powerSourcePrecedence(_ suite: TestSuite) {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.battery-power-sources")
+        var powerSources = PeripheralBatterySupport.powerSourceBatteries(from: airPods(left: 100, right: 100, case: 79))
+        let staleScan = PeripheralBatteryDevice(id: "HID:airpods", name: "Carlton’s AirPods Pro", percent: 40, kind: .audio)
+        let keyboard = PeripheralBatteryDevice(id: "HID:keyboard", name: "Magic Keyboard", percent: 60, kind: .keyboard)
+        let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [staleScan, keyboard] },
+            readPowerSources: { powerSources }, observePowerSources: { _ in {} },
+            readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
+                Reader(cancellation: cancellation, completion: completion)
+            }, currentTime: { 1 })
+        defer { sampler.setEnabled(false); queue.sync {} }
+        sampler.setEnabled(true)
+        let shown = sampler.sample(now: 1).devices
+        suite.expect(shown.count == 3 && shown.contains { $0.id == keyboard.id }
+                     && !shown.contains { $0.id == staleScan.id }
+                     && shown.contains { $0.name == "Carlton’s AirPods Pro" && $0.percent == 100 },
+                     "a device the power-source registry lists is shown from there, once")
+
+        powerSources = PowerSourceBatteries()
+        let afterDisconnect = sampler.sample(now: 100).devices
+        suite.expect(afterDisconnect.map(\.id) == [keyboard.id],
+                     "a scan cannot keep AirPods on screen after the registry stops listing them")
+    }
+
+    private static func powerSourceNotifications(_ suite: TestSuite) {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.battery-notifications")
+        var percent = 50
+        var handler: (() -> Void)?
+        var stops = 0
+        var refreshes = 0
+        let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
+            readPowerSources: {
+                PeripheralBatterySupport.powerSourceBatteries(from: [[
+                    "Type": "Accessory Source", "Name": "Magic Mouse", "Current Capacity": percent,
+                    "Max Capacity": 100, "Accessory Category": "Mouse",
+                ]])
+            }, observePowerSources: { changed in handler = changed; return { stops += 1 } },
+            readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
+                Reader(cancellation: cancellation, completion: completion)
+            }, currentTime: { 1 })
+        sampler.onBluetoothRefresh = { refreshes += 1 }
+        sampler.setEnabled(true)
+        _ = sampler.sample(now: 1)
+        percent = 40
+        suite.expect(sampler.sample(now: 2).devices.first?.percent == 50,
+                     "without a change notice the fast cache still holds")
+        handler?(); handler?(); handler?()
+        Thread.sleep(forTimeInterval: 0.5)
+        queue.sync {}
+        suite.expect(refreshes == 1, "a burst of power-source notices asks for one refresh")
+        suite.expect(sampler.sample(now: 3).devices.first?.percent == 40,
+                     "a power-source notice makes the next sample read the registry again")
+        sampler.setEnabled(false)
+        queue.sync {}
+        suite.expect(stops == 1, "disabling stops listening for power-source notices")
     }
 
     private static func device(_ percent: Int, id: String = "HID:fixture") -> PeripheralBatteryDevice {
@@ -74,6 +193,7 @@ enum PeripheralBatteryLifecycleTests {
         var fast: [PeripheralBatteryDevice] = []
         var readers: [Reader] = [] // Access only while the serial queue is drained or inside it.
         let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { fast },
+            readPowerSources: { PowerSourceBatteries() }, observePowerSources: { _ in {} },
             readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
                 let reader = Reader(cancellation: cancellation, completion: completion)
                 readers.append(reader)
@@ -116,6 +236,7 @@ enum PeripheralBatteryLifecycleTests {
         var readers: [Reader] = [] // Access only while the serial queue is drained or inside it.
         var refreshes = 0
         let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
+            readPowerSources: { PowerSourceBatteries() }, observePowerSources: { _ in {} },
             readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
                 let reader = Reader(cancellation: cancellation, completion: completion)
                 readers.append(reader)
@@ -156,6 +277,7 @@ enum PeripheralBatteryLifecycleTests {
         let queue = DispatchQueue(label: "com.vorssaint.tests.battery-cancel")
         var readers: [Reader] = []
         let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
+            readPowerSources: { PowerSourceBatteries() }, observePowerSources: { _ in {} },
             readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
                 let reader = Reader(cancellation: cancellation, completion: completion)
                 readers.append(reader)
@@ -201,6 +323,7 @@ enum PeripheralBatteryLifecycleTests {
         var readers = 0
         var capturedRequest: BoundedProcessCancellation?
         let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
+            readPowerSources: { PowerSourceBatteries() }, observePowerSources: { _ in {} },
             readProfiler: { request in
                 capturedRequest = request
                 entered.signal()
@@ -227,7 +350,8 @@ enum PeripheralBatteryLifecycleTests {
         sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: {
             sampler.setEnabled(false)
             return [device(19)]
-        }, readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
+        }, readPowerSources: { PowerSourceBatteries() }, observePowerSources: { _ in {} },
+        readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
             Reader(cancellation: cancellation, completion: completion)
         })
         sampler.setEnabled(true)

@@ -26,6 +26,17 @@ struct PeripheralBatteryDevice: Identifiable, Equatable {
     let name: String
     let percent: Int
     let kind: PeripheralBatteryKind
+    /// Only power sources report charging; HID and Bluetooth reads do not.
+    var isCharging = false
+}
+
+/// Accessories as IOKit's power-source registry lists them: the list Apple's
+/// own Batteries widget is drawn from. `names` holds every name a listed
+/// accessory goes by, so the same device read from HID or Bluetooth is
+/// recognized as already shown.
+struct PowerSourceBatteries: Equatable {
+    var devices: [PeripheralBatteryDevice] = []
+    var names: Set<String> = []
 }
 
 struct BluetoothBatteryReading: Equatable {
@@ -254,6 +265,104 @@ enum PeripheralBatterySupport {
                                                   kind: kind))
         }
         return sorted(result)
+    }
+
+    /// Earbuds whose charges sit this close read as one row, at the lower
+    /// charge, the way Apple's widget folds a pair; further apart, each bud
+    /// keeps its own row so a flat one is not hidden behind a full one.
+    static let earbudCoalescingTolerance = 10
+
+    /// Accessory power sources from `IOPSCopyPowerSourcesByType`, as
+    /// BatteryCenter (the framework behind Apple's Batteries widget) reads
+    /// them. The Mac's own battery and UPSes are left to `PowerSampler`.
+    static func powerSourceBatteries(from descriptions: [[String: Any]]) -> PowerSourceBatteries {
+        struct Part {
+            let id: String
+            let name: String
+            let partName: String?
+            let partID: String?
+            let percent: Int
+            let charging: Bool
+            let kind: PeripheralBatteryKind
+        }
+        var groups: [String: [Part]] = [:]
+        var order: [String] = []
+        var names = Set<String>()
+        for description in descriptions {
+            let type = string(from: description["Type"])
+            guard type != "InternalBattery", type != "UPS",
+                  description["Is Present"] == nil || bool(from: description["Is Present"]),
+                  let name = string(from: description["Name"]),
+                  let percent = powerSourcePercent(in: description) else { continue }
+            let group = string(from: description["Group Identifier"])
+                ?? string(from: description["Accessory Identifier"])
+                ?? int(from: description["Power Source ID"]).map(String.init)
+                ?? name.lowercased()
+            let partID = string(from: description["Part Identifier"])
+            let partName = string(from: description["Part Name"])
+            let part = Part(id: "PowerSource:\(group):\(partID ?? "Main")",
+                            name: name, partName: partName, partID: partID,
+                            percent: percent, charging: bool(from: description["Is Charging"]),
+                            kind: powerSourceKind(category: string(from: description["Accessory Category"]),
+                                                  name: name))
+            if groups[group] == nil { order.append(group) }
+            groups[group, default: []].append(part)
+            names.insert(normalizedBluetoothName(name))
+            if let partName { names.insert(normalizedBluetoothName(partName)) }
+        }
+
+        var devices: [PeripheralBatteryDevice] = []
+        for group in order {
+            let parts = groups[group] ?? []
+            let buds = parts.filter { $0.partID == "Left" || $0.partID == "Right" }
+            if buds.count == 2,
+               let low = buds.min(by: { $0.percent < $1.percent }),
+               let high = buds.max(by: { $0.percent < $1.percent }),
+               high.percent - low.percent <= earbudCoalescingTolerance {
+                devices.append(PeripheralBatteryDevice(id: "PowerSource:\(group):Buds", name: low.name,
+                                                       percent: low.percent, kind: low.kind,
+                                                       isCharging: buds.contains(where: \.charging)))
+                for part in parts where part.partID != "Left" && part.partID != "Right" {
+                    devices.append(PeripheralBatteryDevice(id: part.id, name: part.name, percent: part.percent,
+                                                           kind: part.kind, isCharging: part.charging))
+                }
+            } else {
+                for part in parts {
+                    let isBud = part.partID == "Left" || part.partID == "Right"
+                    devices.append(PeripheralBatteryDevice(id: part.id,
+                                                           name: isBud ? (part.partName ?? part.name) : part.name,
+                                                           percent: part.percent, kind: part.kind,
+                                                           isCharging: part.charging))
+                }
+            }
+        }
+        return PowerSourceBatteries(devices: devices, names: names)
+    }
+
+    /// Power sources win: a device the registry has ever listed is shown from
+    /// there alone, so a HID read or a Bluetooth scan up to five minutes old
+    /// cannot add a second, staler row for it, or keep it after it leaves.
+    static func merging(powerSources: [PeripheralBatteryDevice],
+                        others: [PeripheralBatteryDevice],
+                        powerSourceNames: Set<String>) -> [PeripheralBatteryDevice] {
+        let kept = others.filter { !powerSourceNames.contains(normalizedBluetoothName($0.name)) }
+        return sorted(powerSources + kept)
+    }
+
+    static func powerSourceKind(category: String?, name: String) -> PeripheralBatteryKind {
+        let category = category?.lowercased() ?? ""
+        if category.contains("keyboard") { return .keyboard }
+        if category.contains("mouse") { return .mouse }
+        if category.contains("trackpad") { return .trackpad }
+        if ["headset", "headphone", "audio", "speaker"].contains(where: category.contains) { return .audio }
+        return kind(product: name, primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
+    }
+
+    private static func powerSourcePercent(in description: [String: Any]) -> Int? {
+        guard let current = int(from: description["Current Capacity"]) else { return nil }
+        let maximum = int(from: description["Max Capacity"]) ?? 100
+        guard maximum > 0 else { return nil }
+        return percent(from: Double(current) * 100 / Double(maximum))
     }
 
     private static func connectedBluetoothEntries(from data: Data) -> [(String, [String: Any])] {

@@ -19,6 +19,11 @@ enum NotchAccessorySupport {
         switch kind {
         case .audio:
             let model = name.lowercased()
+            // The power-source registry lists an AirPods case as its own
+            // accessory, named after the buds with "Case" appended.
+            if model.contains("airpods"), model.hasSuffix("case") {
+                return model.contains("airpods pro") ? "airpodspro.chargingcase.wireless" : "airpods.chargingcase"
+            }
             if model.contains("airpods max") { return "airpodsmax" }
             if model.contains("airpods pro") { return "airpodspro" }
             if model.contains("airpods") { return "airpods" }

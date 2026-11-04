@@ -4,6 +4,8 @@
 import Foundation
 import CoreBluetooth
 import IOKit
+import IOKit.ps
+import notify
 
 protocol PeripheralBluetoothReading: AnyObject {
     func start()
@@ -14,6 +16,8 @@ final class PeripheralBatterySampler {
     private let lock = NSLock()
     private let bluetoothQueue: DispatchQueue
     private let readFast: () -> [PeripheralBatteryDevice]
+    private let readPowerSources: () -> PowerSourceBatteries
+    private let observePowerSources: (@escaping () -> Void) -> () -> Void
     private let readProfiler: (BoundedProcessCancellation) -> Data
     private let makeBluetoothRead: (DispatchQueue, BoundedProcessCancellation, @escaping ([BluetoothBatteryReading]) -> Void) -> PeripheralBluetoothReading
     private let currentTime: () -> TimeInterval
@@ -22,6 +26,10 @@ final class PeripheralBatterySampler {
     private var cached = PeripheralBatterySample()
     private var cachedAt: TimeInterval = -.greatestFiniteMagnitude
     private var cachedBluetoothDevices: [PeripheralBatteryDevice] = []
+    /// Every name the power-source registry has listed; see `merging`.
+    private var powerSourceNames = Set<String>()
+    private var stopObservingPowerSources: (() -> Void)?
+    private var powerSourceChangePending = false
     private var bluetoothObservedAt: TimeInterval = -.greatestFiniteMagnitude
     private var bluetoothStartedAt: TimeInterval = -.greatestFiniteMagnitude
     private var bluetoothFinishedAt: TimeInterval = -.greatestFiniteMagnitude
@@ -30,13 +38,16 @@ final class PeripheralBatterySampler {
     private var bluetoothBatteryRead: (request: BoundedProcessCancellation, reader: PeripheralBluetoothReading)?
     private let fastCacheInterval: TimeInterval = 15
     private let bluetoothCacheInterval: TimeInterval = 300
-    /// Called on the Bluetooth queue after a refresh stores new devices, so
-    /// the owner can read them now instead of at its next sampling stride.
-    /// Set once before sampling starts.
+    /// Called after a Bluetooth refresh stores new devices, or after the
+    /// power-source registry says an accessory attached, left or changed
+    /// charge, so the owner can read them now instead of at its next
+    /// sampling stride. Set once before sampling starts.
     var onBluetoothRefresh: (() -> Void)?
 
     init(bluetoothQueue: DispatchQueue = DispatchQueue(label: "com.vorssaint.peripheral-battery.bluetooth", qos: .utility),
          readFast: @escaping () -> [PeripheralBatteryDevice] = PeripheralBatterySampler.readFastDevices,
+         readPowerSources: @escaping () -> PowerSourceBatteries = PeripheralBatterySampler.readPowerSourceBatteries,
+         observePowerSources: @escaping (@escaping () -> Void) -> () -> Void = PeripheralBatterySampler.observePowerSourceChanges,
          readProfiler: @escaping (BoundedProcessCancellation) -> Data = PeripheralBatterySampler.readBluetoothSystemProfilerData,
          makeBluetoothRead: @escaping (DispatchQueue, BoundedProcessCancellation, @escaping ([BluetoothBatteryReading]) -> Void) -> PeripheralBluetoothReading = {
              BluetoothBatteryRead(queue: $0, cancellation: $1, completion: $2)
@@ -44,6 +55,8 @@ final class PeripheralBatterySampler {
          currentTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.bluetoothQueue = bluetoothQueue
         self.readFast = readFast
+        self.readPowerSources = readPowerSources
+        self.observePowerSources = observePowerSources
         self.readProfiler = readProfiler
         self.makeBluetoothRead = makeBluetoothRead
         self.currentTime = currentTime
@@ -68,6 +81,10 @@ final class PeripheralBatterySampler {
         if enabled, currentTime() - bluetoothObservedAt >= bluetoothCacheInterval {
             cachedBluetoothDevices = []
         }
+        let stopObserving = stopObservingPowerSources
+        stopObservingPowerSources = nil
+        powerSourceChangePending = false
+        let observedGeneration = generation
         if let oldRequest {
             bluetoothQueue.async { [weak self] in
                 guard let self, self.bluetoothBatteryRead?.request === oldRequest else { return }
@@ -76,7 +93,40 @@ final class PeripheralBatterySampler {
             }
         }
         lock.unlock()
+        stopObserving?()
         oldRequest?.cancel()
+        guard enabled else { return }
+        // Registered outside the lock: a handler may run before this returns.
+        let stop = observePowerSources { [weak self] in
+            self?.powerSourcesChanged(generation: observedGeneration)
+        }
+        lock.lock()
+        if self.enabled, generation == observedGeneration, stopObservingPowerSources == nil {
+            stopObservingPowerSources = stop
+            lock.unlock()
+        } else {
+            lock.unlock()
+            stop()
+        }
+    }
+
+    /// Notifications come in bursts (both buds and the case report together),
+    /// so one refresh follows each burst.
+    private func powerSourcesChanged(generation observedGeneration: UUID) {
+        lock.lock()
+        guard enabled, generation == observedGeneration, !powerSourceChangePending else { lock.unlock(); return }
+        powerSourceChangePending = true
+        lock.unlock()
+        bluetoothQueue.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            guard self.enabled, self.generation == observedGeneration else { self.lock.unlock(); return }
+            self.powerSourceChangePending = false
+            self.cachedAt = -.greatestFiniteMagnitude
+            let onRefresh = self.onBluetoothRefresh
+            self.lock.unlock()
+            onRefresh?()
+        }
     }
 
     func sample(now: TimeInterval) -> PeripheralBatterySample {
@@ -97,10 +147,19 @@ final class PeripheralBatterySampler {
         let bluetoothTime = bluetoothObservedAt
         lock.unlock()
 
+        let powerSources = readPowerSources()
         let fastDevices = readFast()
-        let devices = Self.uniqueDevices(from: fastDevices + bluetoothDevices)
+        lock.lock()
+        powerSourceNames.formUnion(powerSources.names)
+        let knownPowerSourceNames = powerSourceNames
+        lock.unlock()
+        let devices = PeripheralBatterySupport.merging(
+            powerSources: powerSources.devices,
+            others: Self.uniqueDevices(from: fastDevices + bluetoothDevices),
+            powerSourceNames: knownPowerSourceNames)
         var observedAt = Dictionary(fastDevices.map { ($0.id, now) }, uniquingKeysWith: { max($0, $1) })
         for device in bluetoothDevices { observedAt[device.id] = bluetoothTime }
+        for device in powerSources.devices { observedAt[device.id] = now }
         let result = PeripheralBatterySample(devices: devices, observedAt: observedAt)
 
         lock.lock()
@@ -164,6 +223,48 @@ final class PeripheralBatterySampler {
             "/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"],
             timeout: 2, maxOutputBytes: 4 * 1024 * 1024, cancellation: cancellation)
         return result.status == 0 && !cancellation.isCancelled ? result.output : Data()
+    }
+
+    /// `IOPSCopyPowerSourcesByType` is IOKit's private entry point for
+    /// accessory power sources (the public `IOPSCopyPowerSourcesInfo` only
+    /// lists the Mac's battery and UPSes). Resolved at run time so a macOS
+    /// that drops it leaves the HID and Bluetooth readings working.
+    private typealias CopyPowerSourcesByType = @convention(c) (Int32) -> Unmanaged<CFTypeRef>?
+    private static let copyPowerSourcesByType: CopyPowerSourcesByType? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */,
+                                 "IOPSCopyPowerSourcesByType") else { return nil }
+        return unsafeBitCast(symbol, to: CopyPowerSourcesByType.self)
+    }()
+    /// kIOPSSourceForAccessories in IOPowerSourcesPrivate.h.
+    private static let accessoryPowerSources: Int32 = 4
+
+    private static func readPowerSourceBatteries() -> PowerSourceBatteries {
+        guard let copy = copyPowerSourcesByType,
+              let blob = copy(accessoryPowerSources)?.takeRetainedValue(),
+              let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else {
+            return PowerSourceBatteries()
+        }
+        let descriptions = list.compactMap {
+            IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any]
+        }
+        return PeripheralBatterySupport.powerSourceBatteries(from: descriptions)
+    }
+
+    /// The accessory notifications are the ones pmset itself listens to;
+    /// the general one also covers a power source that disappears.
+    private static func observePowerSourceChanges(_ handler: @escaping () -> Void) -> () -> Void {
+        let names = ["com.apple.system.accpowersources.attach",
+                     "com.apple.system.accpowersources.source",
+                     "com.apple.system.powersources"]
+        var tokens: [Int32] = []
+        for name in names {
+            var token: Int32 = 0
+            if notify_register_dispatch(name, &token, DispatchQueue.global(qos: .utility), { _ in handler() })
+                == NOTIFY_STATUS_OK {
+                tokens.append(token)
+            }
+        }
+        return { tokens.forEach { notify_cancel($0) } }
     }
 
     private static func readFastDevices() -> [PeripheralBatteryDevice] {
