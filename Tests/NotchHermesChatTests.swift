@@ -1403,11 +1403,9 @@ enum NotchHermesChatTests {
                         == "s-2",
                      "a resume Hermes answered with a new session names it in its metadata")
 
-        suite.expect(SettingsBackupSupport.machineStateKeys.isSuperset(of: [DefaultsKey.notchHermesChatSession,
-                                                                            DefaultsKey.notchHermesChatModel])
-                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatSession] as? String == ""
-                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatModel] as? String == "",
-                     "the session and model start empty and stay with this Mac's Hermes")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.notchHermesChatSession)
+                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatSession] as? String == "",
+                     "the session starts empty and stays with this Mac's Hermes")
 
         func strings(_ words: NotchHermesChatStrings) -> [String] {
             Mirror(reflecting: words).children.compactMap { $0.value as? String }

@@ -704,16 +704,6 @@ final class NotchHermesChatService: ObservableObject {
         client?.startOver()
     }
 
-    /// Moves the conversation to another of Hermes' models, and remembers the
-    /// choice for later sessions. Hermes cannot switch mid-turn.
-    func chooseModel(_ id: String) {
-        guard agent == .vertus, !working, !switchingModel, id != currentModel,
-              availableModels.contains(where: { $0.id == id }), let client else { return }
-        UserDefaults.standard.set(id, forKey: DefaultsKey.notchHermesChatModel)
-        switchingModel = true
-        client.setModel(id)
-    }
-
     // MARK: Events
 
     private func handle(_ event: NotchHermesChatClient.Event) {
@@ -726,13 +716,8 @@ final class NotchHermesChatService: ObservableObject {
         case .models(let available, let current):
             availableModels = available
             currentModel = current
+            // Hermes' own config chooses the model; the page only names it.
             modelName = current.flatMap { id in available.first { $0.id == id }?.name ?? id }
-            // The model picked here last time wins over Hermes' default.
-            let chosen = UserDefaults.standard.string(forKey: DefaultsKey.notchHermesChatModel) ?? ""
-            if !chosen.isEmpty, chosen != current, available.contains(where: { $0.id == chosen }) {
-                switchingModel = true
-                client?.setModel(chosen)
-            }
         case .modelChanged(let id):
             switchingModel = false
             currentModel = id

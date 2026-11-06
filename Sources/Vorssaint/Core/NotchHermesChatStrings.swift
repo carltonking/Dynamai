@@ -60,8 +60,7 @@ struct NotchHermesChatStrings {
     var numberHint: String
     var recentChats: String
     var messagesToolMissingFormat: String
-    /// The page's model menu, and why Hermes would not move to the one picked.
-    var model: String
+    /// Why Hermes would not move the session to another model.
     var modelSwitchFailedFormat: String
 
     func notFound(_ command: String) -> String { String(format: notFoundFormat, command) }
@@ -156,7 +155,6 @@ extension NotchHermesChatStrings {
         numberHint: "The number you text Hermes at (its Photon line). With it, this page is your iMessage thread with Hermes; leave it empty to talk to Hermes on this Mac. It stays on this Mac and is left out of settings backups.",
         recentChats: "Recent Chats",
         messagesToolMissingFormat: "Nothing runs at “%1$@”. Texting Hermes from the island needs the imsg tool to read and send your iMessages.",
-        model: "Model",
         modelSwitchFailedFormat: "Hermes kept its model: %1$@"
     )
 
@@ -211,7 +209,6 @@ extension NotchHermesChatStrings {
         numberHint: "O número para o qual você manda mensagens ao Hermes (a linha do Photon). Com ele, esta página é a sua conversa do iMessage com o Hermes; deixe vazio para falar com o Hermes neste Mac. Fica neste Mac e não entra nos backups de ajustes.",
         recentChats: "Conversas recentes",
         messagesToolMissingFormat: "Nada roda em “%1$@”. Mandar mensagens ao Hermes pela ilha exige a ferramenta imsg para ler e enviar suas mensagens do iMessage.",
-        model: "Modelo",
         modelSwitchFailedFormat: "O Hermes manteve o modelo: %1$@"
     )
 
@@ -266,7 +263,6 @@ extension NotchHermesChatStrings {
         numberHint: "El número al que escribes a Hermes (su línea de Photon). Con él, esta página es tu hilo de iMessage con Hermes; déjalo vacío para hablar con Hermes en este Mac. Se queda en este Mac y no entra en las copias de los ajustes.",
         recentChats: "Chats recientes",
         messagesToolMissingFormat: "No hay nada en “%1$@”. Escribir a Hermes desde la isla necesita la herramienta imsg para leer y enviar tus iMessages.",
-        model: "Modelo",
         modelSwitchFailedFormat: "Hermes mantuvo su modelo: %1$@"
     )
 
@@ -321,7 +317,6 @@ extension NotchHermesChatStrings {
         numberHint: "Číslo, na ktoré píšete Hermes (jeho linka Photon). S ním je táto stránka vaše vlákno v iMessage s Hermes; nechajte prázdne, ak chcete hovoriť s Hermes na tomto Macu. Zostáva na tomto Macu a nie je súčasťou záloh nastavení.",
         recentChats: "Nedávne konverzácie",
         messagesToolMissingFormat: "Na „%1$@“ nič nebeží. Písanie Hermes z ostrova potrebuje nástroj imsg na čítanie a odosielanie správ iMessage.",
-        model: "Model",
         modelSwitchFailedFormat: "Hermes ponechal svoj model: %1$@"
     )
 
@@ -376,7 +371,6 @@ extension NotchHermesChatStrings {
         numberHint: "Die Nummer, an die du Hermes schreibst (seine Photon-Leitung). Damit ist diese Seite dein iMessage-Verlauf mit Hermes; leer lassen, um mit Hermes auf diesem Mac zu sprechen. Sie bleibt auf diesem Mac und ist nicht Teil von Einstellungs-Backups.",
         recentChats: "Letzte Chats",
         messagesToolMissingFormat: "Unter „%1$@“ läuft nichts. Um Hermes von der Insel aus zu schreiben, braucht es das Tool imsg zum Lesen und Senden deiner iMessages.",
-        model: "Modell",
         modelSwitchFailedFormat: "Hermes hat sein Modell behalten: %1$@"
     )
 
@@ -431,7 +425,6 @@ extension NotchHermesChatStrings {
         numberHint: "Le numéro auquel vous écrivez à Hermes (sa ligne Photon). Avec lui, cette page est votre fil iMessage avec Hermes ; laissez-le vide pour parler à Hermes sur ce Mac. Il reste sur ce Mac et n’est pas inclus dans les sauvegardes des réglages.",
         recentChats: "Conversations récentes",
         messagesToolMissingFormat: "Rien ne s’exécute à « %1$@ ». Écrire à Hermes depuis l’île nécessite l’outil imsg pour lire et envoyer vos iMessages.",
-        model: "Modèle",
         modelSwitchFailedFormat: "Hermes a gardé son modèle : %1$@"
     )
 
@@ -486,7 +479,6 @@ extension NotchHermesChatStrings {
         numberHint: "Il numero a cui scrivi a Hermes (la sua linea Photon). Con questo, la pagina è il tuo thread iMessage con Hermes; lascialo vuoto per parlare con Hermes su questo Mac. Resta su questo Mac ed è escluso dai backup delle impostazioni.",
         recentChats: "Chat recenti",
         messagesToolMissingFormat: "Non c’è niente in “%1$@”. Scrivere a Hermes dall’isola richiede lo strumento imsg per leggere e inviare i tuoi iMessage.",
-        model: "Modello",
         modelSwitchFailedFormat: "Hermes ha mantenuto il suo modello: %1$@"
     )
 
@@ -541,7 +533,6 @@ extension NotchHermesChatStrings {
         numberHint: "Номер, на который вы пишете Hermes (его линия Photon). С ним эта страница становится вашей перепиской с Hermes в iMessage; оставьте пустым, чтобы говорить с Hermes на этом Mac. Он остается на этом Mac и не попадает в резервные копии настроек.",
         recentChats: "Недавние чаты",
         messagesToolMissingFormat: "По пути «%1$@» ничего нет. Чтобы писать Hermes с острова, нужен инструмент imsg для чтения и отправки ваших iMessage.",
-        model: "Модель",
         modelSwitchFailedFormat: "Hermes оставил прежнюю модель: %1$@"
     )
 
@@ -596,7 +587,6 @@ extension NotchHermesChatStrings {
         numberHint: "Hermes’e yazdığınız numara (Photon hattı). Bununla bu sayfa, Hermes ile iMessage yazışmanız olur; bu Mac’te Hermes ile konuşmak için boş bırakın. Bu Mac’te kalır ve ayar yedeklerine dahil edilmez.",
         recentChats: "Son Sohbetler",
         messagesToolMissingFormat: "“%1$@” konumunda hiçbir şey çalışmıyor. Adadan Hermes’e yazmak, iMessage’larınızı okumak ve göndermek için imsg aracını gerektirir.",
-        model: "Model",
         modelSwitchFailedFormat: "Hermes modelini değiştirmedi: %1$@"
     )
 
@@ -651,7 +641,6 @@ extension NotchHermesChatStrings {
         numberHint: "Hermesに送る番号（Photonの回線）。設定すると、このページはHermesとのiMessageのスレッドになります。このMacでHermesと話すには空のままにしてください。このMacにだけ保存され、設定のバックアップには含まれません。",
         recentChats: "最近のチャット",
         messagesToolMissingFormat: "“%1$@”には何もありません。アイランドからHermesにメッセージを送るには、iMessageを読んで送るimsgツールが必要です。",
-        model: "モデル",
         modelSwitchFailedFormat: "Hermesはモデルを切り替えませんでした: %1$@"
     )
 
@@ -706,7 +695,6 @@ extension NotchHermesChatStrings {
         numberHint: "Hermes에게 메시지를 보내는 번호(Photon 회선)입니다. 설정하면 이 페이지가 Hermes와의 iMessage 대화가 되며, 이 Mac에서 Hermes와 대화하려면 비워 두세요. 이 Mac에만 남고 설정 백업에는 포함되지 않습니다.",
         recentChats: "최근 대화",
         messagesToolMissingFormat: "“%1$@”에서 실행되는 것이 없습니다. 아일랜드에서 Hermes에게 메시지를 보내려면 iMessage를 읽고 보내는 imsg 도구가 필요합니다.",
-        model: "모델",
         modelSwitchFailedFormat: "Hermes가 모델을 바꾸지 않았습니다: %1$@"
     )
 
@@ -761,7 +749,6 @@ extension NotchHermesChatStrings {
         numberHint: "Номер, на який ви пишете Hermes (його лінія Photon). З ним ця сторінка стає вашим листуванням із Hermes в iMessage; залиште порожнім, щоб говорити з Hermes на цьому Mac. Він лишається на цьому Mac і не потрапляє до резервних копій налаштувань.",
         recentChats: "Нещодавні чати",
         messagesToolMissingFormat: "За шляхом «%1$@» нічого немає. Щоб писати Hermes з острова, потрібен інструмент imsg для читання й надсилання ваших iMessage.",
-        model: "Модель",
         modelSwitchFailedFormat: "Hermes залишив попередню модель: %1$@"
     )
 
@@ -816,7 +803,6 @@ extension NotchHermesChatStrings {
         numberHint: "你给 Hermes 发消息所用的号码（它的 Photon 线路）。设置后，此页面就是你与 Hermes 的 iMessage 对话；留空则在这台 Mac 上与 Hermes 对话。它只保存在这台 Mac 上，不会包含在设置备份中。",
         recentChats: "最近的对话",
         messagesToolMissingFormat: "“%1$@”处没有可运行的内容。从岛中给 Hermes 发消息需要 imsg 工具来读取和发送你的 iMessage。",
-        model: "模型",
         modelSwitchFailedFormat: "Hermes 未切换模型：%1$@"
     )
 
@@ -871,7 +857,6 @@ extension NotchHermesChatStrings {
         numberHint: "你傳訊息給 Hermes 所用的號碼（它的 Photon 線路）。設定後，此頁面就是你與 Hermes 的 iMessage 對話；留空則在這台 Mac 上與 Hermes 對話。它只保存在這台 Mac 上，不會包含在設定備份中。",
         recentChats: "最近的對話",
         messagesToolMissingFormat: "「%1$@」沒有可執行的項目。從島中傳訊息給 Hermes 需要 imsg 工具來讀取和傳送你的 iMessage。",
-        model: "模型",
         modelSwitchFailedFormat: "Hermes 未切換模型：%1$@"
     )
 
@@ -926,7 +911,6 @@ extension NotchHermesChatStrings {
         numberHint: "你傳訊息給 Hermes 所用的號碼（它的 Photon 線路）。設定後，此頁面就是你與 Hermes 的 iMessage 對話；留空則在這部 Mac 上與 Hermes 對話。它只保存在這部 Mac 上，不會包括在設定備份中。",
         recentChats: "最近的對話",
         messagesToolMissingFormat: "「%1$@」沒有可執行的項目。從島中傳訊息給 Hermes 需要 imsg 工具來讀取和傳送你的 iMessage。",
-        model: "模型",
         modelSwitchFailedFormat: "Hermes 未切換模型：%1$@"
     )
 }

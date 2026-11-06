@@ -389,6 +389,19 @@ enum MessagesAgentMark {
     }
 }
 
+/// Hermes Agent's mark: the figure from its own app icon, cut out as a
+/// template so it takes the island's colours like the other agents'.
+/// Loaded once.
+enum HermesMark {
+    static let image: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "agent-hermes-mark", withExtension: "png",
+                                        subdirectory: "Images"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
+}
+
 /// SIRI's mark beside the pages button: its ring-and-wave mark and the name,
 /// in the island's black and white like the other agents' marks.
 struct SiriWordmark: View {

@@ -196,8 +196,13 @@ private struct NotchAgentSidebarTile: View {
                     .font(.system(size: 14, weight: .bold))
             }
         default:
-            // Hermes: its initial, as the agents without a logo have.
-            Text("H").font(.system(size: 14, weight: .bold))
+            if let logo = HermesMark.image {
+                Image(nsImage: logo).renderingMode(.template).resizable().scaledToFit()
+                    .frame(width: 17, height: 17)
+            } else {
+                // Its logo missing from the bundle: the agent's initial.
+                Text("H").font(.system(size: 14, weight: .bold))
+            }
         }
     }
 }

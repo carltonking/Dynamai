@@ -457,6 +457,10 @@ struct NotchHermesChatView: View {
     /// The agent's own mark where the page would otherwise show a chat glyph.
     private var mark: AnyView? {
         switch chat.agent {
+        case .vertus:
+            return HermesMark.image.map {
+                AnyView(Image(nsImage: $0).renderingMode(.template).resizable().aspectRatio(contentMode: .fit))
+            }
         case .messages(let agent):
             return MessagesAgentMark.image(for: agent).map {
                 AnyView(Image(nsImage: $0).renderingMode(.template).resizable().aspectRatio(contentMode: .fit))
@@ -467,17 +471,17 @@ struct NotchHermesChatView: View {
 
     // MARK: Band and composer
 
-    /// The island's top row carries the agent's name and the companion, the
-    /// agent's face: its mood already says whether a session is starting,
-    /// working or stuck. Hermes' page also names the model it runs on, as a
-    /// menu of the others Hermes offers.
+    /// The island's top row carries only the agent's name and the companion,
+    /// the agent's face: its mood already says whether a session is starting,
+    /// working or stuck, and the model behind it is not the page's concern
+    /// (Hermes' own config chooses it; the settings page names it).
     @ViewBuilder private var status: some View {
         HStack(spacing: 8) {
             // The agent's own mark beside the pages button: which agent this
             // page talks to, at a glance.
             Group {
                 switch chat.agent {
-                case .vertus: MessagesAgentWordmark(name: "HERMES", height: 13)
+                case .vertus: MessagesAgentWordmark(name: "HERMES", height: 13, mark: HermesMark.image)
                 case .instinct: InstinctWordmark(height: 13)
                 case .siri: SiriWordmark(height: 11)
                 case .muse: MessagesAgentWordmark(name: "MUSE", height: 13, mark: MuseLogo.image)
@@ -489,10 +493,6 @@ struct NotchHermesChatView: View {
             .help(text.title)
             .accessibilityLabel(text.title)
 
-            if chat.agent == .vertus, !chat.availableModels.isEmpty {
-                modelMenu
-            }
-
             if NotchMascotSupport.isEnabled() {
                 NotchMascotView(look: NotchMascotSupport.look(), mood: companionMood, size: 20,
                                 cue: .celebrate, cueID: chat.completedReplies - (cheeredReplies ?? chat.completedReplies))
@@ -500,41 +500,6 @@ struct NotchHermesChatView: View {
                     .accessibilityHidden(true)
             }
         }
-    }
-
-    /// Hermes' models, the one in use checked. Switching waits for the turn
-    /// in flight, as Hermes requires.
-    private var modelMenu: some View {
-        Menu {
-            ForEach(chat.availableModels) { model in
-                Button {
-                    chat.chooseModel(model.id)
-                } label: {
-                    if model.id == chat.currentModel {
-                        Label(model.name, systemImage: "checkmark")
-                    } else {
-                        Text(model.name)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Text(chat.modelName ?? text.model)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 170, alignment: .leading)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(chat.switchingModel ? 0.35 : 0.6))
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .disabled(chat.working || chat.switchingModel || preview)
-        .help(text.model)
-        .accessibilityLabel(text.model)
     }
 
     /// Thoughtful while Hermes works, puzzled when it cannot be reached, at
