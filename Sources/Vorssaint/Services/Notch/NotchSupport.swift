@@ -11,7 +11,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
     // Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
     case museChat
     // The iMessage agents beside Instinct, one page each (`NotchMessagesAgent`).
-    case saunaChat, rhoChat, caddyChat, reneChat, irisChat, folkChat, maverickChat
+    case saunaChat, rhoChat, caddyChat, reneChat, folkChat, pokeChat
     /// LaTeX and keyboard arithmetic, answered as it is typed.
     case calculator
     var id: String { rawValue }
@@ -50,7 +50,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "eye"
         case .hermesChat: return "bubble.left.and.bubble.right"
         case .instinctChat: return "message"
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return "message"
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return "message"
         case .siriChat: return "sparkle"
         case .calculator: return "function"
         case .museChat: return "bubble.left"
@@ -78,7 +78,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "o"
         case .hermesChat: return "h"
         case .instinctChat: return "x"
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return messagesAgent?.shortcutKey ?? ""
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return messagesAgent?.shortcutKey ?? ""
         case .siriChat: return "y"
         // Every letter has a page; = is the calculator's sign.
         case .calculator: return "="
@@ -110,7 +110,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .hermesChat: return AppFeature.notchHermesChat.isAvailable(in: defaults)
         case .instinctChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
         // Instinct's feature carries every iMessage agent.
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
         case .siriChat: return AppFeature.notchSiriChat.isAvailable(in: defaults)
         case .calculator: return true
         case .museChat: return AppFeature.notchMuseChat.isAvailable(in: defaults)
@@ -2895,7 +2895,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
-                 .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat, .calculator:
+                 .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .calculator:
                 contentHeight = budget
             }
         }
@@ -3315,5 +3315,48 @@ enum NotchTranslucentTint {
             (Double($0 / height), opacity(atDepth: $0, stripHeight: stripHeight,
                                           openness: openness, increasedContrast: increasedContrast))
         }
+    }
+}
+
+/// The Controls page's widget screens as a loop: a swipe past the last
+/// screen comes round to the first, and one past the first to the last, so
+/// swiping one way keeps cycling through the stack as a phone's Smart Stack
+/// does. One trackpad swipe moves one screen however far it travels, and its
+/// momentum moves nothing more; a mouse wheel moves a screen a notch, never
+/// faster than the screens can be seen.
+struct NotchWidgetStackScroll {
+    /// How far the fingers travel before the swipe turns the screen.
+    static let threshold: CGFloat = 24
+    /// The least time between two screens turned by a mouse wheel.
+    static let wheelInterval: TimeInterval = 0.35
+
+    private var accumulated: CGFloat = 0
+    private var stepped = false
+    private var lastWheelStep: Date?
+
+    static func wrapped(_ index: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        return (index % count + count) % count
+    }
+
+    /// The screens one scroll event moves by: 1 to the next, -1 back, 0 for
+    /// none. Content follows the fingers, as in a scroll view: a negative
+    /// delta brings up the screen below.
+    mutating func step(deltaY: CGFloat, precise: Bool, began: Bool, ended: Bool,
+                       momentum: Bool, at date: Date) -> Int {
+        guard precise else {
+            guard deltaY != 0 else { return 0 }
+            if let lastWheelStep, date.timeIntervalSince(lastWheelStep) < Self.wheelInterval { return 0 }
+            lastWheelStep = date
+            return deltaY < 0 ? 1 : -1
+        }
+        if began { accumulated = 0; stepped = false }
+        if momentum { return 0 }
+        defer { if ended { accumulated = 0; stepped = false } }
+        guard !stepped else { return 0 }
+        accumulated += deltaY
+        guard abs(accumulated) >= Self.threshold else { return 0 }
+        stepped = true
+        return accumulated < 0 ? 1 : -1
     }
 }

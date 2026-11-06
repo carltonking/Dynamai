@@ -327,20 +327,18 @@ enum NotchCalendarSupport {
 enum NotchCalendarTimeline {
     /// Two hours either side of now.
     static let halfSpan: TimeInterval = 2 * 3600
-    /// Events starting this close together share the width side by side;
-    /// one that starts later, while another is still on, is drawn over it,
-    /// stepped in, as Calendar and Notion Calendar draw them.
-    static let sideBySideWindow: TimeInterval = 30 * 60
 
     struct Placement: Equatable {
         let event: NotchCalendarEvent
         /// 0 at the top of the window, 1 at the bottom; clipped to the window.
         let top: Double
         let bottom: Double
-        /// How many events it is stepped in over.
-        let depth: Int
+        /// Its column among the events it runs alongside, how many columns
+        /// they need, and how many it may widen across because nothing
+        /// beside it is on at the same time.
         let column: Int
         let columns: Int
+        let span: Int
     }
 
     static func window(now: Date) -> DateInterval {
@@ -365,37 +363,56 @@ enum NotchCalendarTimeline {
     }
 
     /// Timed events that show in the window, placed. All-day events take no
-    /// time of day, so they have no place on the timeline.
+    /// time of day, so they have no place on the timeline. Events that run
+    /// at the same time sit in columns side by side and never cover one
+    /// another, as Calendar's day view lays them out: stepping one in over
+    /// another left a stack of half-hidden cards nobody could read.
     static func placements(_ events: [NotchCalendarEvent], now: Date) -> [Placement] {
         let window = window(now: now)
         let shown = events
             .filter { !$0.allDay && $0.end > window.start && $0.start < window.end && $0.end > $0.start }
             .sorted { $0.start != $1.start ? $0.start < $1.start : $0.end > $1.end }
 
-        // Events that start together form a group, laid side by side.
-        var groups: [[NotchCalendarEvent]] = []
+        // Events that overlap, directly or through one another, share a set
+        // of columns; the next free column takes each one in start order.
+        var clusters: [[NotchCalendarEvent]] = []
+        var clusterEnd = Date.distantPast
         for event in shown {
-            if let first = groups.last?.first,
-               event.start.timeIntervalSince(first.start) < sideBySideWindow, event.start < first.end {
-                groups[groups.count - 1].append(event)
+            if event.start < clusterEnd, !clusters.isEmpty {
+                clusters[clusters.count - 1].append(event)
+                clusterEnd = max(clusterEnd, event.end)
             } else {
-                groups.append([event])
+                clusters.append([event])
+                clusterEnd = event.end
             }
         }
 
-        // A group steps in once over every group still on when it starts.
-        var placed: [(end: Date, depth: Int)] = []
         var result: [Placement] = []
-        for group in groups {
-            let start = group[0].start
-            let depth = placed.filter { $0.end > start }.map { $0.depth + 1 }.max() ?? 0
-            for (column, event) in group.enumerated() {
+        for cluster in clusters {
+            var columnEnds: [Date] = []
+            var assigned: [(event: NotchCalendarEvent, column: Int)] = []
+            for event in cluster {
+                if let free = columnEnds.firstIndex(where: { $0 <= event.start }) {
+                    columnEnds[free] = event.end
+                    assigned.append((event, free))
+                } else {
+                    columnEnds.append(event.end)
+                    assigned.append((event, columnEnds.count - 1))
+                }
+            }
+            let columns = columnEnds.count
+            for (event, column) in assigned {
+                // Widen into the columns to the right while none of them has
+                // anything on during this event.
+                var span = 1
+                while column + span < columns, !assigned.contains(where: {
+                    $0.column == column + span && $0.event.start < event.end && $0.event.end > event.start
+                }) { span += 1 }
                 result.append(Placement(event: event,
                                         top: position(of: event.start, in: window),
                                         bottom: position(of: event.end, in: window),
-                                        depth: depth, column: column, columns: group.count))
+                                        column: column, columns: columns, span: span))
             }
-            placed.append((group.map(\.end).max() ?? start, depth))
         }
         return result
     }

@@ -19,6 +19,8 @@ protocol NotchAgentChatTransport: AnyObject {
     func startOver()
     /// A button on one of the agent's cards was tapped (Siri's Send).
     func perform(action: String, button: String)
+    /// A tapback on the agent's newest message (Messages threads only).
+    func react(_ tapback: MessagesTapback)
 }
 
 /// Files go to an agent on this Mac by path; Messages carries them as files.
@@ -32,6 +34,9 @@ extension NotchAgentChatTransport {
 
     /// Only Siri's cards have buttons.
     func perform(action: String, button: String) {}
+
+    /// Only a Messages thread takes tapbacks.
+    func react(_ tapback: MessagesTapback) {}
 }
 
 /// `hermes acp` never reaches an approval card: the island refuses its

@@ -344,18 +344,48 @@ struct InstinctWordmark: View {
     }
 }
 
-/// An iMessage agent's mark beside the pages button: its name in capitals,
-/// spaced and bold, in the island's black and white like the other marks.
+/// An iMessage agent's mark beside the pages button: its logo, then its
+/// name in capitals, spaced and bold, the way VERTUS shows its hexagon and
+/// name, in the island's black and white like the other marks.
 struct MessagesAgentWordmark: View {
     let name: String
     let height: CGFloat
+    /// The agent's logo as a template; without one, the name alone.
+    var mark: NSImage? = nil
 
     var body: some View {
-        Text(name)
-            .font(.system(size: height * 0.95, weight: .bold))
-            .tracking(height * 0.12)
-            .lineLimit(1)
-            .fixedSize()
+        HStack(spacing: height * 0.4) {
+            if let mark {
+                Image(nsImage: mark)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: height * 1.15)
+            }
+            Text(name)
+                .font(.system(size: height * 0.95, weight: .bold))
+                .tracking(height * 0.12)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .frame(height: height)
+    }
+}
+
+/// Each iMessage agent's own logo, the glyph from its app icon on its
+/// website cut out as a white template, so it takes the island's colours
+/// like VERTUS's and Instinct's marks. Loaded once per agent.
+enum MessagesAgentMark {
+    private static var cache: [NotchMessagesAgent: NSImage] = [:]
+
+    static func image(for agent: NotchMessagesAgent) -> NSImage? {
+        if let image = cache[agent] { return image }
+        guard let url = Bundle.main.url(forResource: "agent-\(agent.rawValue)-mark", withExtension: "png",
+                                        subdirectory: "Images"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        cache[agent] = image
+        return image
     }
 }
 

@@ -9,7 +9,7 @@ import Foundation
 /// name; the number each is texted at is the person's own and lives only in
 /// this Mac's preferences, never in the source.
 enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
-    case sauna, rho, caddy, rene, iris, folk, maverick
+    case sauna, rho, caddy, rene, folk, poke
 
     var id: String { rawValue }
 
@@ -20,9 +20,8 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rho: return "Rho"
         case .caddy: return "Caddy"
         case .rene: return "Rene"
-        case .iris: return "Iris"
         case .folk: return "Folk"
-        case .maverick: return "Maverick"
+        case .poke: return "Poke"
         }
     }
 
@@ -35,9 +34,8 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rho: return .rhoChat
         case .caddy: return .caddyChat
         case .rene: return .reneChat
-        case .iris: return .irisChat
         case .folk: return .folkChat
-        case .maverick: return .maverickChat
+        case .poke: return .pokeChat
         }
     }
 
@@ -49,9 +47,8 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rho: return "q"
         case .caddy: return "k"
         case .rene: return "e"
-        case .iris: return "j"
         case .folk: return "l"
-        case .maverick: return "z"
+        case .poke: return "j"
         }
     }
 
@@ -63,6 +60,17 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
     var numberKey: String { DefaultsKey.notchMessagesAgentNumber(self) }
     var speakRepliesKey: String { DefaultsKey.notchMessagesAgentSpeakReplies(self) }
 
+    /// An agent reached through Apple Messages for Business has no phone
+    /// number: Messages knows it by its business id, which is the same for
+    /// everyone who texts it and public, so it is filled in rather than asked
+    /// for. Poke is one (issue: Poke has no number to give).
+    var builtInHandle: String? {
+        switch self {
+        case .poke: return "urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14"
+        case .sauna, .rho, .caddy, .rene, .folk: return nil
+        }
+    }
+
     static func agent(for module: NotchModule) -> NotchMessagesAgent? {
         allCases.first { $0.module == module }
     }
@@ -71,7 +79,7 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         var defaults: [String: Any] = [:]
         for agent in allCases {
             defaults[agent.enabledKey] = true
-            defaults[agent.numberKey] = ""
+            defaults[agent.numberKey] = agent.builtInHandle ?? ""
             defaults[agent.speakRepliesKey] = false
         }
         return defaults

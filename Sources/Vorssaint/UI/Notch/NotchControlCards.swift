@@ -6,43 +6,89 @@ import SwiftUI
 
 /// The Controls page's widgets, as Apple's widgets page: full-width screens
 /// stacked one above the other, a vertical swipe or scroll moving to the
-/// next and the dots beside them saying which one shows. The calendar's
+/// next. No dots say which one shows: they took a column of the strip the
+/// widgets need, and the slide already tells the screens apart. The calendar's
 /// hours have the first screen; the smaller widgets share the second, side
-/// by side. The stack moves only when it is swiped; it opens on the first.
+/// by side. The stack is a loop, so swiping the same way keeps cycling, and
+/// only one screen is ever on show: a scroll view let the next screen show
+/// through mid-swipe, half over the one leaving.
 struct NotchControlCards: View {
     @ObservedObject var service: NotchService
     let items: [NotchControlItem]
     let height: CGFloat
-    @State private var current: Int?
-    @ObservedObject private var l10n = L10n.shared
+    /// Unbounded, so the slide always runs the way the swipe went; the shown
+    /// screen is this wrapped into the stack.
+    @State private var position = 0
+    @State private var direction = 1
+    @State private var hovering = false
+    @State private var scroll = NotchWidgetStackScroll()
+    @State private var monitor: Any?
+    /// Read by the scroll monitor, which outlives the items it was made with.
+    @State private var screenCount = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let screens = NotchSupport.widgetScreens(items)
-        let shown = min(current ?? 0, max(0, screens.count - 1))
-        HStack(spacing: 10) {
-            GeometryReader { proxy in
-                ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(screens.indices, id: \.self) { index in
-                            screen(screens[index], size: proxy.size)
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                                .id(index)
-                        }
-                    }
-                    .scrollTargetLayout()
+        let shown = NotchWidgetStackScroll.wrapped(position, count: screens.count)
+        GeometryReader { proxy in
+            ZStack {
+                if screens.indices.contains(shown) {
+                    screen(screens[shown], size: proxy.size)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .id(position)
+                        .transition(slide)
                 }
-                .scrollTargetBehavior(.paging)
-                .scrollPosition(id: $current)
-                .scrollIndicators(.hidden)
-                .scrollDisabled(screens.count < 2)
             }
-            .frame(height: height)
-
-            if screens.count > 1 {
-                dots(screens, shown: shown)
-            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .frame(height: height)
+        .onHover { hovering = $0 }
+        .onAppear { screenCount = screens.count; installMonitor() }
+        .onChange(of: screens.count) { screenCount = screens.count }
+        .onDisappear { removeMonitor() }
+    }
+
+    /// The new screen comes in from the side the swipe is heading to and the
+    /// old one leaves by the other, with a gap between them as they pass.
+    private var slide: AnyTransition {
+        if reduceMotion { return .opacity }
+        let forward = direction > 0
+        return .asymmetric(
+            insertion: .move(edge: forward ? .bottom : .top).combined(with: .opacity),
+            removal: .move(edge: forward ? .top : .bottom).combined(with: .opacity))
+    }
+
+    private func move(by step: Int) {
+        guard step != 0, screenCount > 1 else { return }
+        // The leaving screen takes its transition from the render before it
+        // goes, so the direction is set a turn ahead of the move.
+        direction = step
+        DispatchQueue.main.async {
+            withAnimation(.smooth(duration: 0.32)) { position += step }
+        }
+    }
+
+    private func installMonitor() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            guard hovering, screenCount > 1 else { return event }
+            // Sideways swipes belong to whatever is under the pointer.
+            guard abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX) else { return event }
+            let step = scroll.step(deltaY: event.scrollingDeltaY,
+                                   precise: event.hasPreciseScrollingDeltas,
+                                   began: event.phase.contains(.began),
+                                   ended: event.phase.contains(.ended) || event.phase.contains(.cancelled),
+                                   momentum: !event.momentumPhase.isEmpty,
+                                   at: Date())
+            move(by: step)
+            return nil
+        }
+    }
+
+    private func removeMonitor() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
     }
 
     @ViewBuilder private func screen(_ widgets: [NotchControlItem], size: CGSize) -> some View {
@@ -70,28 +116,6 @@ struct NotchControlCards: View {
         .frame(width: size.width, height: size.height)
         .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func dots(_ screens: [[NotchControlItem]], shown: Int) -> some View {
-        VStack(spacing: 8) {
-            ForEach(screens.indices, id: \.self) { index in
-                let title = screens[index].map { $0.title(l10n) }.joined(separator: ", ")
-                Button {
-                    withAnimation(.easeOut(duration: 0.25)) { current = index }
-                } label: {
-                    Circle()
-                        .fill(.white.opacity(index == shown ? 0.95 : 0.35))
-                        .frame(width: 6, height: 6)
-                        .frame(width: 12, height: 12)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(title)
-                .accessibilityLabel(title)
-                .accessibilityAddTraits(index == shown ? .isSelected : [])
-            }
-        }
-        .frame(width: 12)
     }
 }
 
@@ -130,6 +154,7 @@ private struct NotchBatteriesWidget: View {
 
     var body: some View {
         let rows = rows
+        // Rows of at least 44 points, so two lines each sit with room.
         let slots = max(rows.count, Int(size.height / 44))
         let rowHeight = size.height / CGFloat(max(1, slots))
         VStack(spacing: 0) {
@@ -150,7 +175,7 @@ private struct NotchBatteriesWidget: View {
                 .frame(height: rowHeight)
                 .overlay(alignment: .bottom) {
                     if index < slots - 1 {
-                        Rectangle().fill(.white.opacity(0.08)).frame(height: 1).padding(.leading, 38)
+                        Rectangle().fill(.white.opacity(0.08)).frame(height: 1).padding(.leading, 44).padding(.trailing, 14)
                     }
                 }
             }
@@ -160,24 +185,28 @@ private struct NotchBatteriesWidget: View {
         .accessibilityLabel(FeatureStrings.notch(l10n.language).batteriesWidget)
     }
 
+    /// The name has the row to itself and the charge sits under it, so a
+    /// name like "Carlton's MacBook Pro" reads whole in a half-width card.
     private func row(_ row: Row) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: row.symbol)
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(.white.opacity(0.8))
-                .frame(width: 18)
-            Text(row.name)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 6)
-            Text("\(row.percent)%")
-                .font(.system(size: 11.5).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.75))
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("\(row.percent)%")
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             NotchBatteryGlyph(percent: row.percent, charging: row.charging)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(row.name), \(row.percent)%")
     }
@@ -268,17 +297,22 @@ private struct NotchCalendarTimelineWidget: View {
                 }
 
                 ForEach(placements, id: \.event.id) { placement in
-                    let inset = CGFloat(placement.depth) * 12
-                    let columnWidth = (width - inset) / CGFloat(placement.columns)
+                    // Columns side by side with a clear gap, so no event
+                    // ever covers another.
+                    let gap: CGFloat = 4
+                    let columnWidth = (width + gap) / CGFloat(placement.columns)
                     let top = placement.top * height
                     let bottom = placement.bottom * height
+                    let size = CGSize(width: max(0, columnWidth * CGFloat(placement.span) - gap),
+                                      height: max(12, bottom - top - 2))
                     Button { service.openCalendarEvent(placement.event.id) } label: {
-                        NotchTimelineEvent(event: placement.event, locale: locale, untitled: text.untitled)
+                        NotchTimelineEvent(event: placement.event, locale: locale, untitled: text.untitled,
+                                           size: size)
                     }
                     .buttonStyle(.plain)
                     .help(placement.event.title)
-                    .frame(width: max(0, columnWidth - 3), height: max(10, bottom - top - 2))
-                    .offset(x: Self.gutter + inset + CGFloat(placement.column) * columnWidth, y: top + 1)
+                    .frame(width: size.width, height: size.height)
+                    .offset(x: Self.gutter + CGFloat(placement.column) * columnWidth, y: top + 1)
                 }
 
                 if placements.isEmpty, !calendar.loading {
@@ -343,16 +377,22 @@ private struct NotchCalendarTimelineWidget: View {
 }
 
 /// One event on the timeline: its calendar's colour as a wash with a solid
-/// bar down the left, then the title, place and times as far as it has room.
+/// bar down the left, then the title, place and times as far as its card
+/// has room for them. A line that would be cut in half is left off.
 private struct NotchTimelineEvent: View {
     let event: NotchCalendarEvent
     let locale: Locale
     let untitled: String
+    let size: CGSize
 
     var body: some View {
         let tint = Color(red: event.color.red, green: event.color.green, blue: event.color.blue)
         let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let font = Font.system(size: 9.5, weight: .semibold, design: .monospaced)
+        // About 13 points a line under 3 points of padding either side.
+        let lines = max(1, Int((size.height - 6) / 13))
+        let showsTime = lines >= 2
+        let showsLocation = lines >= 3 && !event.location.isEmpty && size.width >= 80
         HStack(alignment: .top, spacing: 0) {
             Rectangle().fill(tint).frame(width: 2.5)
             VStack(alignment: .leading, spacing: 1) {
@@ -361,21 +401,23 @@ private struct NotchTimelineEvent: View {
                         .font(font)
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if event.recurring {
+                    if event.recurring, size.width >= 60 {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 7, weight: .bold))
                     }
                 }
-                if !event.location.isEmpty {
+                if showsLocation {
                     Label(event.location, systemImage: "mappin.circle")
                         .font(.system(size: 9, design: .monospaced))
                         .lineLimit(1)
                         .opacity(0.85)
                 }
-                Label("\(time(event.start))–\(time(event.end))", systemImage: "clock")
-                    .font(.system(size: 9, design: .monospaced))
-                    .lineLimit(1)
-                    .opacity(0.85)
+                if showsTime {
+                    Label("\(time(event.start))–\(time(event.end))", systemImage: "clock")
+                        .font(.system(size: 9, design: .monospaced))
+                        .lineLimit(1)
+                        .opacity(0.85)
+                }
             }
             .labelStyle(NotchTimelineLabelStyle())
             .foregroundStyle(Self.readable(tint))
@@ -383,9 +425,8 @@ private struct NotchTimelineEvent: View {
             .padding(.vertical, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        // Solid, so an event stepped in over another hides what is under it.
         .background(Color(nsColor: NSColor(tint).blended(withFraction: 0.72, of: .black) ?? .black))
-        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 

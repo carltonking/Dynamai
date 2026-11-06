@@ -14,11 +14,11 @@ struct NotchAgentChatScreen: View {
     let size: CGSize
     @ObservedObject private var l10n = L10n.shared
     /// The agent being dragged to a new place, the order shown while it
-    /// moves, the place it started from and how far it sits from its slot.
+    /// moves, the place it started from and how far the pointer has gone.
     @State private var dragging: NotchModule?
     @State private var dragOrder: [NotchModule]?
     @State private var dragStart = 0
-    @State private var dragOffset: CGFloat = 0
+    @State private var dragTranslation: CGFloat = 0
 
     static let sidebarWidth: CGFloat = 40
     static let sidebarSpacing: CGFloat = 10
@@ -54,26 +54,44 @@ struct NotchAgentChatScreen: View {
 
     /// The agents, in the island's section order: drag one to move it, click
     /// one (or press Command and its place) to talk to it.
+    ///
+    /// Each tile is placed at an explicit height rather than stacked, and the
+    /// drag is measured in the sidebar's own space. A stacked tile moves under
+    /// the pointer as it changes places, so a drag read in its own space fed
+    /// back on itself and the tile jittered; the dragged tile now follows the
+    /// pointer exactly and only the others glide into their new places.
     private func sidebar(_ agents: [NotchModule]) -> some View {
         let shown = dragOrder ?? agents
+        let pitch = Self.tileSide + Self.tileSpacing
+        let height = CGFloat(agents.count) * Self.tileSide + CGFloat(max(0, agents.count - 1)) * Self.tileSpacing
         return ScrollView(.vertical) {
-            VStack(spacing: Self.tileSpacing) {
-                ForEach(Array(shown.enumerated()), id: \.element) { index, agent in
+            ZStack(alignment: .top) {
+                // Identity in the island's order, so a tile is never rebuilt
+                // while it moves; its place comes from the order shown.
+                ForEach(agents, id: \.self) { agent in
+                    let index = shown.firstIndex(of: agent) ?? 0
+                    let isDragged = agent == dragging
                     NotchAgentSidebarTile(agent: agent, selected: agent == service.selected,
                                           title: agent.title(l10n.language), place: index + 1) {
                         if agent != service.selected { service.select(agent) }
                     }
-                    .offset(y: agent == dragging ? dragOffset : 0)
-                    .zIndex(agent == dragging ? 1 : 0)
-                    .scaleEffect(agent == dragging ? 1.08 : 1)
+                    // Lifted before it is moved, so the lift does not scale
+                    // the distance moved.
+                    .scaleEffect(isDragged ? 1.08 : 1)
+                    .offset(y: isDragged ? draggedY(count: agents.count, pitch: pitch) : CGFloat(index) * pitch)
+                    // The others glide to their new places; the dragged one
+                    // stays under the pointer.
+                    .animation(isDragged ? nil : .easeOut(duration: 0.15), value: index)
+                    .zIndex(isDragged ? 1 : 0)
                     // A pointer drag, not a drag-and-drop: a drop over the
                     // conversation would attach the agent's name to the message.
                     .gesture(reorder(agent, in: agents))
                 }
             }
+            .frame(height: height, alignment: .top)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
-            .animation(.easeOut(duration: 0.15), value: shown)
+            .coordinateSpace(name: Self.sidebarSpace)
         }
         .scrollIndicators(.never)
         .frame(width: Self.sidebarWidth)
@@ -83,30 +101,42 @@ struct NotchAgentChatScreen: View {
         .accessibilityLabel(FeatureStrings.notch(l10n.language).agentChat)
     }
 
+    private static let sidebarSpace = "NotchAgentSidebar"
+
+    /// Where the dragged tile sits: its starting place plus the pointer's
+    /// travel, kept within the list.
+    private func draggedY(count: Int, pitch: CGFloat) -> CGFloat {
+        let y = CGFloat(dragStart) * pitch + dragTranslation
+        return min(max(0, y), CGFloat(max(0, count - 1)) * pitch)
+    }
+
     private func reorder(_ agent: NotchModule, in agents: [NotchModule]) -> some Gesture {
         let pitch = Self.tileSide + Self.tileSpacing
-        return DragGesture(minimumDistance: 4)
+        return DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.sidebarSpace))
             .onChanged { value in
                 if dragging == nil {
                     dragging = agent
                     dragOrder = agents
                     dragStart = agents.firstIndex(of: agent) ?? 0
                 }
+                dragTranslation = value.translation.height
                 guard var order = dragOrder, let current = order.firstIndex(of: agent) else { return }
-                let target = min(order.count - 1, max(0, dragStart + Int((value.translation.height / pitch).rounded())))
+                let target = min(order.count - 1, max(0, Int((draggedY(count: order.count, pitch: pitch) / pitch).rounded())))
                 if target != current {
                     order.move(fromOffsets: IndexSet(integer: current), toOffset: target > current ? target + 1 : target)
                     dragOrder = order
                 }
-                dragOffset = value.translation.height - CGFloat(target - dragStart) * pitch
             }
             .onEnded { _ in
-                if let order = dragOrder, order != agents { service.reorderAgentChats(order) }
+                let order = dragOrder
+                // Settle the tile into its slot first, then save the order:
+                // the order shown is already the new one, so nothing jumps.
                 withAnimation(.easeOut(duration: 0.15)) {
                     dragging = nil
-                    dragOrder = nil
-                    dragOffset = 0
+                    dragTranslation = 0
                 }
+                if let order, order != agents { service.reorderAgentChats(order) }
+                dragOrder = nil
             }
     }
 }
@@ -148,15 +178,37 @@ private struct NotchAgentSidebarTile: View {
         case .siriChat:
             SiriMark().frame(width: 15, height: 15)
         case .museChat:
-            // No drawn mark of Meta's here: the agent's initial, as the
-            // iMessage agents have.
-            Text("M").font(.system(size: 14, weight: .bold))
+            if let logo = MuseLogo.image {
+                Image(nsImage: logo).renderingMode(.template).resizable().scaledToFit()
+                    .frame(width: 17, height: 17)
+            } else {
+                // Muse not on this Mac: the agent's initial, as the
+                // iMessage agents have.
+                Text("M").font(.system(size: 14, weight: .bold))
+            }
         case _ where agent.messagesAgent != nil:
-            // No drawn mark of its own: the agent's initial.
-            Text(String(agent.messagesAgent?.name.prefix(1) ?? ""))
-                .font(.system(size: 14, weight: .bold))
+            if let messages = agent.messagesAgent, let logo = MessagesAgentMark.image(for: messages) {
+                Image(nsImage: logo).renderingMode(.template).resizable().scaledToFit()
+                    .frame(width: 17, height: 17)
+            } else {
+                // Its logo missing from the bundle: the agent's initial.
+                Text(String(agent.messagesAgent?.name.prefix(1) ?? ""))
+                    .font(.system(size: 14, weight: .bold))
+            }
         default:
             VertusMark().fill(style: FillStyle(eoFill: true)).frame(width: 13, height: 15)
         }
     }
+}
+
+/// Muse's own squiggle, the monochrome mark its app shows in the menu bar.
+/// Taken from Muse.app on this Mac, as `AgentMarks` does for the coding
+/// agents, so none of Meta's artwork ships here. Looked up once.
+enum MuseLogo {
+    static let image: NSImage? = {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: MuseAppSupport.bundleIdentifier),
+              let image = Bundle(url: url)?.image(forResource: "AppMenuBarIcon") else { return nil }
+        image.isTemplate = true
+        return image
+    }()
 }

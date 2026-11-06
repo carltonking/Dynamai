@@ -719,10 +719,14 @@ struct NotchMusicTimeline: View {
 
 /// Music as a widget on the Controls page. Square, the cover is on top with
 /// the song, the artist and the transport under it, as the small widgets on
-/// an iPhone lay it out; wider than tall, as it is beside the batteries, the
-/// cover takes the left and the song, its progress and the transport stack
-/// on the right, as the medium widget does. With nothing playing the cover
-/// opens the music app.
+/// an iPhone lay it out. Wider than tall, as it is beside the batteries, the
+/// cover and the song share the top row and the progress and transport run
+/// the card's width under them; a card wide enough for the transport beside
+/// a full-height cover puts them side by side instead, as the medium widget
+/// does. Every part is measured against the card, never left to overflow it:
+/// a transport wider than its column pushed the cover and the skip button
+/// past the card's rounded edge. With nothing playing the cover opens the
+/// music app.
 struct NotchMusicWidget: View {
     @ObservedObject var notch: NotchService
     let size: CGSize
@@ -732,21 +736,37 @@ struct NotchMusicWidget: View {
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var isIdle: Bool { !preview && music.playback == nil && !music.awaitingPlayback }
 
+    /// The compact transport's width: three 36-point buttons 12 apart.
+    private static let transportWidth: CGFloat = 3 * 36 + 2 * 12
+    private static let padding: CGFloat = 16
+    private static let gap: CGFloat = 14
+
     var body: some View {
-        if size.width > size.height * 1.25 { wide } else { square }
+        if size.width <= size.height * 1.25 {
+            square
+        } else if sideBySideCover >= 96 {
+            sideBySide
+        } else {
+            stacked
+        }
     }
 
-    private var wide: some View {
+    /// The cover beside a column the transport fits in, as tall as the card.
+    private var sideBySideCover: CGFloat {
+        min(size.height - 2 * Self.padding,
+            size.width - 2 * Self.padding - Self.gap - Self.transportWidth - 8)
+    }
+
+    private var sideBySide: some View {
         let player = isIdle ? NotchPreferredPlayer.current() : nil
         let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
-        // The cover is as tall as the card allows and never takes more than
-        // half its width, so the transport keeps room for its three buttons.
-        let cover = max(36, min(size.height - 28, (size.width - 36) * 0.5))
-        return HStack(spacing: 14) {
+        let cover = sideBySideCover
+        let column = size.width - 2 * Self.padding - Self.gap - cover
+        return HStack(spacing: Self.gap) {
             coverButton(size: cover, player: player, openTitle: openTitle)
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Spacer(minLength: 0)
-                titles(height: 34, titleSize: 14)
+                titles(height: 34, titleSize: 14, alignment: .center)
                 Spacer(minLength: 0)
                 if let playback = music.playback {
                     NotchMusicTimeline(playback: playback, service: music)
@@ -754,10 +774,38 @@ struct NotchMusicWidget: View {
                 transport(player: player, openTitle: openTitle)
                     .frame(height: 36)
             }
-            .frame(maxWidth: .infinity, maxHeight: cover)
+            .frame(width: column, height: cover)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
+        .padding(Self.padding)
+        .frame(width: size.width, height: size.height)
+        .onAppear { if !preview { music.refreshAutomation() } }
+    }
+
+    private var stacked: some View {
+        let player = isIdle ? NotchPreferredPlayer.current() : nil
+        let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
+        let inner = size.width - 2 * Self.padding
+        let timeline: CGFloat = music.playback != nil ? 30 : 0
+        // What the rows under the cover leave of the height, the cover never
+        // more than a third of the width so the song keeps its room.
+        let cover = max(32, min(72, inner * 0.34,
+                                size.height - 2 * Self.padding - timeline - 36 - 10 - 4))
+        return VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                coverButton(size: cover, player: player, openTitle: openTitle)
+                titles(height: cover, titleSize: 14, alignment: .leading)
+            }
+            .frame(width: inner, alignment: .leading)
+            Spacer(minLength: 10)
+            if let playback = music.playback {
+                NotchMusicTimeline(playback: playback, service: music)
+                    .frame(width: inner)
+            }
+            transport(player: player, openTitle: openTitle)
+                .frame(width: inner, height: 36)
+                .padding(.top, 4)
+        }
+        .padding(Self.padding)
         .frame(width: size.width, height: size.height)
         .onAppear { if !preview { music.refreshAutomation() } }
     }
@@ -771,7 +819,7 @@ struct NotchMusicWidget: View {
         let cover = max(36, min(size.width - 40, size.height - transportHeight - titlesHeight - 30))
         return VStack(spacing: 6) {
             coverButton(size: cover, player: player, openTitle: openTitle)
-            titles(height: titlesHeight, titleSize: 13)
+            titles(height: titlesHeight, titleSize: 13, alignment: .center)
             transport(player: player, openTitle: openTitle)
                 .frame(height: transportHeight)
         }
@@ -793,9 +841,9 @@ struct NotchMusicWidget: View {
         .help(player != nil ? openTitle : text.mediaNowPlaying)
     }
 
-    private func titles(height: CGFloat, titleSize: CGFloat) -> some View {
+    private func titles(height: CGFloat, titleSize: CGFloat, alignment: HorizontalAlignment) -> some View {
         Button { notch.select(.music) } label: {
-            VStack(spacing: 1) {
+            VStack(alignment: alignment, spacing: 2) {
                 Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
                     .font(.system(size: titleSize, weight: .semibold))
                 Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
@@ -804,7 +852,7 @@ struct NotchMusicWidget: View {
                     .foregroundStyle(music.commandFailed ? .orange : .secondary)
             }
             .lineLimit(1)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
             .frame(height: height)
             .contentShape(Rectangle())
         }

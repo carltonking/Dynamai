@@ -62,6 +62,10 @@ final class NotchHermesChatClient {
         case received(NotchHermesChatMessage)
         /// A tapback put on, or taken off, a message of the thread.
         case reacted(InstinctReactionEvent)
+        /// A vote cast on a poll in the thread (Messages threads only).
+        case pollVoted(InstinctPollVote)
+        /// A tapback sent from the page did not reach Messages; the text is why.
+        case tapbackFailed(String)
         /// The conversation lives where this app may not read without Full
         /// Disk Access (the Messages database).
         case needsFullDiskAccess

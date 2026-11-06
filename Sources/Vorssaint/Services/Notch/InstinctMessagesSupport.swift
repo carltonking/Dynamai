@@ -22,6 +22,44 @@ struct InstinctMessageRecord: Equatable {
     var replyToGuid: String? = nil
     /// Files on the message, where Messages keeps them.
     var attachments: [NotchHermesChatMessage.Attachment] = []
+    /// A poll the message carries (Apple's Polls app).
+    var poll: NotchHermesChatMessage.Poll? = nil
+    /// An iMessage app's message the island cannot draw.
+    var interactive: NotchHermesChatMessage.Interactive? = nil
+}
+
+/// A vote cast on a poll, here or on the phone: Messages stores it as a row
+/// of its own naming the poll, and imsg prints it as one.
+struct InstinctPollVote: Equatable {
+    let rowID: Int64
+    let guid: String
+    let pollGuid: String
+    let optionID: String
+    let participant: String
+    let fromMe: Bool
+    /// False when the choice was taken back.
+    let selected: Bool
+    let chatIdentifier: String?
+    let participants: [String]
+    let isGroup: Bool
+    let sender: String
+}
+
+/// The tapbacks Messages can send without its private bridge: the six
+/// classic ones, by the name `imsg react` takes.
+enum MessagesTapback: String, CaseIterable, Identifiable {
+    case love, like, dislike, laugh, emphasis, question
+    var id: String { rawValue }
+    var emoji: String {
+        switch self {
+        case .love: return "❤️"
+        case .like: return "👍"
+        case .dislike: return "👎"
+        case .laugh: return "😂"
+        case .emphasis: return "‼️"
+        case .question: return "❓"
+        }
+    }
 }
 
 /// A tapback arriving on the watch: Messages stores it as a row of its own
@@ -52,6 +90,8 @@ struct InstinctChatRecord: Equatable {
     var name: String = ""
     let participants: [String]
     let isGroup: Bool
+    /// Messages' own id for the chat, as AppleScript names it.
+    var guid: String = ""
 }
 
 /// The pure half of the Instinct page: reading what `imsg` prints, telling
@@ -114,10 +154,19 @@ enum InstinctMessagesSupport {
         // A tapback's row carries words ("Reacted 🚀 to …") but is not a
         // message; it is read as a reaction instead.
         guard object["is_reaction"] as? Bool != true else { return nil }
-        let text = cleaned(object["text"] as? String ?? "")
+        // A vote is read as a vote, applied to the poll it names.
+        let pollObject = object["poll"] as? [String: Any]
+        guard pollVote(in: pollObject) == nil else { return nil }
+        let poll = Self.poll(in: pollObject)
+        let interactive = Self.interactive(object["balloon_bundle_id"] as? String)
+        // "Sent a poll" stands in for the poll on devices that cannot draw
+        // one; the poll itself is shown instead.
+        let text = poll == nil ? cleaned(object["text"] as? String ?? "") : ""
         let files = attachments(object["attachments"])
-        // An edit record has neither words nor files to show.
-        guard !text.isEmpty || !files.isEmpty else { return nil }
+        // An edit record has neither words nor files to show. A poll or an
+        // iMessage app's message has no words of its own but is still a
+        // message: dropping it hid Poke's choices and Sauna's polls.
+        guard !text.isEmpty || !files.isEmpty || poll != nil || interactive != nil else { return nil }
         let originator = (object["thread_originator_guid"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return InstinctMessageRecord(
             rowID: rowID,
@@ -131,17 +180,100 @@ enum InstinctMessagesSupport {
             isGroup: object["is_group"] as? Bool ?? false,
             reactions: reactions(object["reactions"]),
             replyToGuid: originator,
-            attachments: files)
+            attachments: files,
+            poll: poll,
+            interactive: interactive)
+    }
+
+    /// A poll as `imsg` describes the message that created it.
+    static func poll(in object: [String: Any]?) -> NotchHermesChatMessage.Poll? {
+        guard let object, object["kind"] as? String == "created" || object["event"] as? String == "imessage.poll.created",
+              let guid = object["poll_guid"] as? String, !guid.isEmpty,
+              let list = object["options"] as? [[String: Any]] else { return nil }
+        let options = list.compactMap { item -> NotchHermesChatMessage.Poll.Option? in
+            guard let id = item["id"] as? String, let text = item["text"] as? String else { return nil }
+            return NotchHermesChatMessage.Poll.Option(id: id, text: text)
+        }
+        return options.isEmpty ? nil : NotchHermesChatMessage.Poll(guid: guid, options: options)
+    }
+
+    /// The part of a vote's row that names the poll and the choice.
+    private static func pollVote(in object: [String: Any]?)
+        -> (pollGuid: String, optionID: String, participant: String, selected: Bool)? {
+        guard let object, let pollGuid = object["poll_guid"] as? String, !pollGuid.isEmpty else { return nil }
+        let event = object["event"] as? String ?? ""
+        let kind = object["kind"] as? String ?? ""
+        guard event.hasPrefix("imessage.poll.") && event != "imessage.poll.created" || ["vote", "voted", "unvoted"].contains(kind),
+              let vote = object["vote"] as? [String: Any],
+              let option = vote["option_id"] as? String, !option.isEmpty else { return nil }
+        let type = (vote["event_type"] as? String ?? event).lowercased()
+        let selected = !(type.contains("unselect") || type.contains("unvote") || type.contains("remov"))
+        return (pollGuid, option, vote["participant"] as? String ?? "", selected)
+    }
+
+    static func pollVote(fromLine line: String) -> InstinctPollVote? {
+        guard let object = jsonObject(line),
+              let found = pollVote(in: object["poll"] as? [String: Any]) else { return nil }
+        return InstinctPollVote(
+            rowID: int64(object["id"]) ?? 0,
+            guid: object["guid"] as? String ?? "",
+            pollGuid: found.pollGuid, optionID: found.optionID, participant: found.participant,
+            fromMe: object["is_from_me"] as? Bool ?? false, selected: found.selected,
+            chatIdentifier: object["chat_identifier"] as? String,
+            participants: object["participants"] as? [String] ?? [],
+            isGroup: object["is_group"] as? Bool ?? false,
+            sender: object["sender"] as? String ?? "")
+    }
+
+    /// The votes in `imsg history` output, oldest first so a choice taken
+    /// back after it was made ends taken back.
+    static func pollVotes(in output: String) -> [InstinctPollVote] {
+        output.split(whereSeparator: \.isNewline).compactMap { pollVote(fromLine: String($0)) }
+            .sorted { $0.rowID < $1.rowID }
+    }
+
+    /// The vote applied to the poll it names; a thread without that poll is
+    /// left as it is.
+    static func applying(_ vote: InstinctPollVote,
+                         to messages: [NotchHermesChatMessage]) -> [NotchHermesChatMessage] {
+        guard let index = messages.firstIndex(where: { $0.poll?.guid == vote.pollGuid }),
+              var poll = messages[index].poll else { return messages }
+        let voter = vote.fromMe ? "" : normalizedHandle(vote.participant.isEmpty ? vote.sender : vote.participant)
+        poll.votes.removeAll { $0.optionID == vote.optionID && $0.fromMe == vote.fromMe
+            && (vote.fromMe || normalizedHandle($0.participant) == voter) }
+        if vote.selected {
+            poll.votes.append(.init(optionID: vote.optionID, participant: vote.fromMe ? "" : voter, fromMe: vote.fromMe))
+        }
+        var updated = messages
+        updated[index].poll = poll
+        return updated
+    }
+
+    static func belongs(_ vote: InstinctPollVote, to number: String) -> Bool {
+        guard !vote.isGroup else { return false }
+        if let identifier = vote.chatIdentifier, sameHandle(identifier, number) { return true }
+        return vote.participants.count == 1 && sameHandle(vote.participants[0], number)
+    }
+
+    /// Which iMessage app drew a message, when it is one the island shows
+    /// only as a card. Links and polls are drawn; their apps are not listed.
+    static func interactive(_ bundle: String?) -> NotchHermesChatMessage.Interactive? {
+        guard let bundle, !bundle.isEmpty, bundle.contains("MSMessageExtensionBalloonPlugin") else { return nil }
+        if bundle.hasSuffix(":com.apple.messages.Polls") { return nil }
+        return bundle.contains("messages.business") ? .business : .app
     }
 
     /// The files `imsg --attachments` lists on a message, where they are on
-    /// this Mac. Stickers and files Messages no longer has are left out.
+    /// this Mac. Files Messages no longer has are left out.
     static func attachments(_ value: Any?) -> [NotchHermesChatMessage.Attachment] {
         guard let list = value as? [[String: Any]] else { return [] }
         return list.compactMap { item in
-            guard item["is_sticker"] as? Bool != true, item["missing"] as? Bool != true,
+            // Stickers are images and are shown like any other; a link's
+            // preview payload is Messages' own and is drawn as the link card.
+            guard item["missing"] as? Bool != true,
                   let raw = (item["original_path"] ?? item["path"] ?? item["filename"]) as? String,
-                  !raw.isEmpty else { return nil }
+                  !raw.isEmpty,
+                  (raw as NSString).pathExtension.lowercased() != "pluginpayloadattachment" else { return nil }
             let path = (raw as NSString).expandingTildeInPath
             let name = (item["transfer_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? (path as NSString).lastPathComponent
@@ -239,7 +371,8 @@ enum InstinctMessagesSupport {
             name: (object["display_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? object["name"] as? String ?? "",
             participants: object["participants"] as? [String] ?? [],
-            isGroup: object["is_group"] as? Bool ?? false)
+            isGroup: object["is_group"] as? Bool ?? false,
+            guid: object["guid"] as? String ?? "")
     }
 
     static func chats(in output: String) -> [InstinctChatRecord] {
@@ -293,7 +426,9 @@ enum InstinctMessagesSupport {
         for prefix in ["tel:", "sms:", "imessage:", "mailto:"] where value.hasPrefix(prefix) {
             value.removeFirst(prefix.count)
         }
-        if value.contains("@") { return value }
+        // A business id is a name, not a number: read as its digits, two
+        // businesses' ids could share their last ten and pass as each other.
+        if value.contains("@") || isBusinessHandle(value) { return value }
         let digits = value.filter(\.isASCII).filter(\.isNumber)
         return digits.isEmpty ? value : digits
     }
@@ -306,7 +441,8 @@ enum InstinctMessagesSupport {
         let a = normalizedHandle(first), b = normalizedHandle(second)
         guard !a.isEmpty, !b.isEmpty else { return false }
         if a == b { return true }
-        guard !a.contains("@"), !b.contains("@"), a.count >= 10, b.count >= 10 else { return false }
+        guard !a.contains("@"), !b.contains("@"), !isBusinessHandle(a), !isBusinessHandle(b),
+              a.count >= 10, b.count >= 10 else { return false }
         return a.suffix(10) == b.suffix(10)
     }
 
@@ -339,7 +475,8 @@ enum InstinctMessagesSupport {
                                text: record.text, date: record.date,
                                reactions: record.reactions.isEmpty ? nil : record.reactions,
                                replyTo: record.replyToGuid.map(stableID),
-                               attachments: record.attachments.isEmpty ? nil : record.attachments)
+                               attachments: record.attachments.isEmpty ? nil : record.attachments,
+                               poll: record.poll, interactive: record.interactive)
     }
 
     /// The thread as Messages has it, in place of whatever the page held: the
@@ -406,12 +543,63 @@ enum InstinctMessagesSupport {
 
     /// The words go as one argument, never through a shell, so nothing in
     /// them is read as a command.
-    static func sendArguments(number: String, text: String) -> [String] {
-        ["send", "--to", number.trimmingCharacters(in: .whitespacesAndNewlines), "--text", text]
+    static func sendArguments(number: String, text: String, chatGuid: String? = nil) -> [String] {
+        ["send"] + recipient(number, chatGuid: chatGuid) + ["--text", text]
     }
 
-    static func sendArguments(number: String, file: URL) -> [String] {
-        ["send", "--to", number.trimmingCharacters(in: .whitespacesAndNewlines), "--file", file.path]
+    /// A tapback on the newest message the agent sent in the conversation:
+    /// the one `imsg react` can reach while System Integrity Protection is on.
+    static func reactArguments(chatID: Int64, tapback: MessagesTapback) -> [String] {
+        ["react", "--chat-id", String(chatID), "--reaction", tapback.rawValue]
+    }
+
+    /// Messages opened on the conversation, for what only Messages can do
+    /// here: answering a business's list picker, voting, editing, unsending.
+    /// A business is opened by its Messages for Business link.
+    static func messagesURL(for handle: String) -> URL? {
+        let handle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !handle.isEmpty else { return nil }
+        if isBusinessHandle(handle) { return URL(string: "https://bcrw.apple.com/" + handle) }
+        // A number as Messages files it, + and digits; an address as it is.
+        let address = handle.contains("@") ? handle
+            : (handle.hasPrefix("+") ? "+" : "") + handle.filter(\.isASCII).filter(\.isNumber)
+        return URL(string: "imessage:" + (address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? address))
+    }
+
+    /// The name on a contact card, as its `FN` line gives it.
+    static func contactName(inVCard text: String) -> String? {
+        for line in text.components(separatedBy: .newlines) {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].split(separator: ";").first.map { $0.uppercased() } ?? ""
+            guard key == "FN" else { continue }
+            let name = parts[1].trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty { return name }
+        }
+        return nil
+    }
+
+    static func sendArguments(number: String, file: URL, chatGuid: String? = nil) -> [String] {
+        ["send"] + recipient(number, chatGuid: chatGuid) + ["--file", file.path]
+    }
+
+    /// Apple Messages for Business threads, as Poke texts from, are known by
+    /// a business id (`urn:biz:…`) and never by a number or an address.
+    static func isBusinessHandle(_ handle: String) -> Bool {
+        handle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("urn:biz:")
+    }
+
+    /// `imsg send --to` takes only a number or an address; a business is
+    /// reached through its existing conversation by Messages' own chat id.
+    /// `--chat-identifier` made imsg ask Messages for `iMessage;-;urn:biz:…`,
+    /// which Messages does not have (AppleScript error -1728): a business
+    /// chat is `any;-;urn:biz:…`. The id imsg read for the chat is used when
+    /// known, and that form otherwise.
+    private static func recipient(_ number: String, chatGuid: String?) -> [String] {
+        let handle = number.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isBusinessHandle(handle) else { return ["--to", handle] }
+        let guid = chatGuid.flatMap { $0.isEmpty ? nil : $0 } ?? "any;-;" + handle
+        return ["--chat-guid", guid]
     }
 
     // MARK: Helpers

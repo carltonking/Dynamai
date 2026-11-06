@@ -3711,9 +3711,9 @@ enum NotchTests {
         calendarMonthContracts(suite)
     }
 
-    /// The Controls page's calendar: four hours with now in the middle,
-    /// events that start together side by side and one that starts during
-    /// another stepped in over it, as in the layout the page was designed to.
+    /// The Controls page's calendar: four hours with now in the middle, and
+    /// events that run at the same time side by side in columns, never one
+    /// drawn over another.
     private static func timelineContracts(_ suite: TestSuite,
                                           event: (String, Double, Double, Bool) -> NotchCalendarEvent,
                                           now: Date) {
@@ -3727,21 +3727,31 @@ enum NotchTests {
 
         let minute = 60.0
         let founders = event("founders", -130 * minute, 14 * minute, false)
+        let early = event("early", -115 * minute, -80 * minute, false)
         let tutoring = event("tutoring", -70 * minute, 74 * minute, false)
         let calculus = event("calculus", -10 * minute, 65 * minute, false)
         let midterm = event("midterm", -10 * minute, 65 * minute, false)
         let office = event("office", 74 * minute, 134 * minute, false)
         let gym = event("gym", 74 * minute, 134 * minute, false)
-        let placed = NotchCalendarTimeline.placements([gym, midterm, founders, office, calculus, tutoring], now: now)
+        let placed = NotchCalendarTimeline.placements([gym, midterm, founders, office, early, calculus, tutoring],
+                                                      now: now)
         func place(_ id: String) -> NotchCalendarTimeline.Placement? { placed.first { $0.event.id == id } }
-        suite.expect(place("founders")?.depth == 0 && place("tutoring")?.depth == 1
-                     && place("calculus")?.depth == 2 && place("midterm")?.depth == 2,
-               "an event that starts while others are on is stepped in once over each")
-        suite.expect(place("calculus")?.columns == 2 && place("midterm")?.columns == 2
-                     && Set([place("calculus")?.column, place("midterm")?.column]) == [0, 1],
-               "events that start together share the width side by side")
-        suite.expect(place("office")?.depth == 0 && place("gym")?.depth == 0 && place("office")?.columns == 2,
-               "once the earlier events have ended, the next ones are back at the edge")
+        let covers = placed.enumerated().contains { index, first in
+            placed.dropFirst(index + 1).contains { second in
+                first.event.start < second.event.end && second.event.start < first.event.end
+                    && first.column < second.column + second.span && second.column < first.column + first.span
+            }
+        }
+        suite.expect(placed.count == 7 && !covers,
+               "no two events on at the same time share any of the width, so none covers another")
+        suite.expect(place("calculus")?.columns == 4 && place("founders")?.column == 0
+                     && place("tutoring")?.column == 1
+                     && Set([place("calculus")?.column, place("midterm")?.column]) == [2, 3],
+               "events on at the same time take the next free column, side by side")
+        suite.expect(place("early")?.column == 1 && place("early")?.span == 3 && place("founders")?.span == 1,
+               "an event with nothing beside it widens across the free columns")
+        suite.expect(place("office")?.columns == 2 && Set([place("office")?.column, place("gym")?.column]) == [0, 1],
+               "once the earlier events have ended, the next ones start a fresh set of columns")
         suite.expect(place("founders")?.top == 0 && place("gym")?.bottom == 1,
                "events running past the window's edges are cut at them")
 
@@ -3763,6 +3773,43 @@ enum NotchTests {
                      && NotchSupport.widgetScreens([.calendar]) == [[.calendar]]
                      && NotchSupport.widgetScreens([.timer, .volume]).isEmpty,
                "a screen with nothing on it is left out rather than shown empty")
+        widgetStackContracts(suite)
+    }
+
+    /// The widget screens loop, and one swipe turns one screen.
+    private static func widgetStackContracts(_ suite: TestSuite) {
+        suite.expect(NotchWidgetStackScroll.wrapped(2, count: 2) == 0
+                     && NotchWidgetStackScroll.wrapped(-1, count: 2) == 1
+                     && NotchWidgetStackScroll.wrapped(7, count: 3) == 1
+                     && NotchWidgetStackScroll.wrapped(4, count: 0) == 0,
+               "swiping past the last widget screen comes round to the first, and back past the first to the last")
+
+        let date = Date(timeIntervalSinceReferenceDate: 0)
+        var scroll = NotchWidgetStackScroll()
+        var steps: [Int] = []
+        steps.append(scroll.step(deltaY: -10, precise: true, began: true, ended: false, momentum: false, at: date))
+        steps.append(scroll.step(deltaY: -20, precise: true, began: false, ended: false, momentum: false, at: date))
+        steps.append(scroll.step(deltaY: -60, precise: true, began: false, ended: false, momentum: false, at: date))
+        steps.append(scroll.step(deltaY: -5, precise: true, began: false, ended: true, momentum: false, at: date))
+        steps.append(scroll.step(deltaY: -80, precise: true, began: false, ended: false, momentum: true, at: date))
+        suite.expect(steps == [0, 1, 0, 0, 0],
+               "a long trackpad swipe and its momentum turn exactly one screen, once it has travelled far enough")
+        let next = scroll.step(deltaY: -30, precise: true, began: true, ended: false, momentum: false, at: date)
+        let back = { () -> Int in
+            var fresh = NotchWidgetStackScroll()
+            return fresh.step(deltaY: 30, precise: true, began: true, ended: false, momentum: false, at: date)
+        }()
+        suite.expect(next == 1 && back == -1,
+               "every new swipe turns another screen, so swiping the same way keeps cycling; the other way goes back")
+
+        var wheel = NotchWidgetStackScroll()
+        let first = wheel.step(deltaY: -1, precise: false, began: false, ended: false, momentum: false, at: date)
+        let burst = wheel.step(deltaY: -1, precise: false, began: false, ended: false, momentum: false,
+                               at: date.addingTimeInterval(0.05))
+        let later = wheel.step(deltaY: -1, precise: false, began: false, ended: false, momentum: false,
+                               at: date.addingTimeInterval(0.5))
+        suite.expect(first == 1 && burst == 0 && later == 1,
+               "a mouse wheel turns a screen a notch, never faster than the screens can be seen")
     }
 
     /// Events chosen from their menu in the island, with the countdown for

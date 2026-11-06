@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import AVFoundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -340,7 +341,10 @@ struct NotchHermesChatView: View {
             NotchHermesChatBubble(words: message.text, mine: mine, tail: tail, text: text, messaging: messaging,
                                   reactions: message.reactions ?? [], attachments: message.attachments ?? [],
                                   reply: { startReply(to: message.id) },
-                                  edit: mine ? { chat.draft = message.text; typing = true } : nil)
+                                  edit: mine ? { chat.draft = message.text; typing = true } : nil,
+                                  poll: message.poll, interactive: message.interactive,
+                                  openInMessages: chat.carriesMessagesThread ? { chat.openInMessages() } : nil,
+                                  react: chat.tapbackTarget == message.id ? { chat.react($0) } : nil)
                 .accessibilityLabel("\(mine ? text.you : text.title): \(message.text)")
             if !mine { linkCards(message.text) }
         }
@@ -363,6 +367,18 @@ struct NotchHermesChatView: View {
             Button(text.copyMessage) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(message.text, forType: .string)
+            }
+            // Only the agent's newest message takes a tapback from here.
+            if chat.tapbackTarget == message.id {
+                Menu(messaging.react) {
+                    ForEach(MessagesTapback.allCases) { tapback in
+                        Button(tapback.emoji) { chat.react(tapback) }
+                    }
+                }
+            }
+            if chat.carriesMessagesThread {
+                Divider()
+                Button(messaging.openInMessages) { chat.openInMessages() }
             }
         }
     }
@@ -509,8 +525,17 @@ struct NotchHermesChatView: View {
 
     private var symbol: String { chat.agent.module.symbol }
 
-    /// VERTUS's own mark where the page would otherwise show a chat glyph.
-    private var mark: AnyView? { chat.agent == .vertus ? Self.vertusMark : nil }
+    /// The agent's own mark where the page would otherwise show a chat glyph.
+    private var mark: AnyView? {
+        switch chat.agent {
+        case .vertus: return Self.vertusMark
+        case .messages(let agent):
+            return MessagesAgentMark.image(for: agent).map {
+                AnyView(Image(nsImage: $0).renderingMode(.template).resizable().aspectRatio(contentMode: .fit))
+            }
+        default: return nil
+        }
+    }
     private static let vertusMark = AnyView(VertusMark().fill(style: FillStyle(eoFill: true)))
 
     // MARK: Band and composer
@@ -528,8 +553,9 @@ struct NotchHermesChatView: View {
                 case .vertus: VertusWordmark(height: 13)
                 case .instinct: InstinctWordmark(height: 13)
                 case .siri: SiriWordmark(height: 11)
-                case .muse: MessagesAgentWordmark(name: "MUSE", height: 13)
-                case .messages(let agent): MessagesAgentWordmark(name: agent.displayName, height: 13)
+                case .muse: MessagesAgentWordmark(name: "MUSE", height: 13, mark: MuseLogo.image)
+                case .messages(let agent):
+                    MessagesAgentWordmark(name: agent.displayName, height: 13, mark: MessagesAgentMark.image(for: agent))
                 }
             }
             .foregroundStyle(.white.opacity(0.9))
@@ -704,6 +730,12 @@ private struct NotchHermesChatBubble: View {
     var reply: (() -> Void)? = nil
     /// Puts your message back in the field to send again, changed.
     var edit: (() -> Void)? = nil
+    var poll: NotchHermesChatMessage.Poll? = nil
+    var interactive: NotchHermesChatMessage.Interactive? = nil
+    /// Opens the thread in Messages, for what only Messages can do.
+    var openInMessages: (() -> Void)? = nil
+    /// Sends a tapback; set only on the message one can reach.
+    var react: ((MessagesTapback) -> Void)? = nil
     @State private var hovered = false
 
     var body: some View {
@@ -723,7 +755,13 @@ private struct NotchHermesChatBubble: View {
             if mine { actions }
             VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
                 ForEach(attachments, id: \.self) { file in
-                    NotchAttachmentView(attachment: file, openTitle: messaging.open)
+                    NotchAttachmentView(attachment: file, openTitle: messaging.open, messaging: messaging)
+                }
+                if let poll {
+                    NotchPollCard(poll: poll, messaging: messaging, vote: openInMessages)
+                }
+                if let interactive {
+                    NotchInteractiveCard(kind: interactive, messaging: messaging, answer: openInMessages)
                 }
                 if !words.isEmpty { bubble }
             }
@@ -782,6 +820,24 @@ private struct NotchHermesChatBubble: View {
                 NSPasteboard.general.setString(words, forType: .string)
             }
             if let edit { action("pencil", text.editMessage, edit) }
+            if let react {
+                Menu {
+                    ForEach(MessagesTapback.allCases) { tapback in
+                        Button(tapback.emoji) { react(tapback) }
+                    }
+                } label: {
+                    Image(systemName: "face.smiling")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(messaging.react)
+                .accessibilityLabel(messaging.react)
+            }
         }
         // Kept in the layout so the bubble does not shift as the pointer
         // comes and goes.
@@ -831,9 +887,19 @@ struct NotchTypingBubble: View {
 struct NotchAttachmentView: View {
     let attachment: NotchHermesChatMessage.Attachment
     let openTitle: String
+    var messaging: NotchAgentMessagingStrings? = nil
     @State private var image: NSImage?
+    @State private var contactName: String?
 
     var body: some View {
+        if attachment.isAudio, let messaging {
+            NotchVoiceMemoView(url: attachment.url, messaging: messaging)
+        } else {
+            file
+        }
+    }
+
+    private var file: some View {
         Button { NSWorkspace.shared.open(attachment.url) } label: {
             if attachment.isImage, let image {
                 Image(nsImage: image)
@@ -843,14 +909,28 @@ struct NotchAttachmentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 HStack(spacing: 8) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: attachment.path))
-                        .resizable()
-                        .frame(width: 26, height: 26)
-                    Text(attachment.name)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if attachment.isContact {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 26, height: 26)
+                    } else {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: attachment.path))
+                            .resizable()
+                            .frame(width: 26, height: 26)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(contactName ?? attachment.name)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if attachment.isContact, let messaging {
+                            Text(messaging.contactCard)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -863,13 +943,186 @@ struct NotchAttachmentView: View {
         .accessibilityLabel("\(openTitle) \(attachment.name)")
         // Read off the main thread once the bubble is on screen.
         .task(id: attachment.path) {
+            if attachment.isContact {
+                contactName = await NotchAttachmentView.contactName(attachment.url)
+                return
+            }
             guard attachment.isImage else { return }
             image = await NotchAttachmentView.thumbnail(attachment.url)
         }
     }
 
+    private static func contactName(_ url: URL) async -> String? {
+        await Task.detached(priority: .utility) {
+            (try? String(contentsOf: url, encoding: .utf8)).flatMap(InstinctMessagesSupport.contactName(inVCard:))
+        }.value
+    }
+
     private static func thumbnail(_ url: URL) async -> NSImage? {
         await Task.detached(priority: .utility) { NSImage(contentsOf: url) }.value
+    }
+}
+
+/// A voice memo as Messages plays it: a play button, how far it has got
+/// and how long it is. Loaded when the bubble shows, released when it goes.
+private struct NotchVoiceMemoView: View {
+    let url: URL
+    let messaging: NotchAgentMessagingStrings
+    @StateObject private var player = NotchVoiceMemoPlayer()
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { player.toggle(url) } label: {
+                Image(systemName: player.playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.black.opacity(0.85))
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(0.9), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(player.playing ? messaging.pause : messaging.play)
+            .accessibilityLabel(player.playing ? messaging.pause : messaging.play)
+            TimelineView(.animation(minimumInterval: 0.2, paused: !player.playing)) { _ in
+                let progress = player.duration > 0 ? player.currentTime / player.duration : 0
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.2))
+                    Capsule().fill(Color.white.opacity(0.85))
+                        .frame(width: max(3, 110 * progress))
+                }
+                .frame(width: 110, height: 3)
+            }
+            Text(Self.clock(player.playing ? player.duration - player.currentTime : player.duration))
+                .font(.system(size: 10.5).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.7))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(NotchMessagesStyle.theirs, in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(messaging.voiceMemo)
+        .task(id: url) { await player.load(url) }
+        .onDisappear { player.stop() }
+    }
+
+    private static func clock(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+/// Plays one voice memo; reads its length off the main thread first.
+@MainActor
+private final class NotchVoiceMemoPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    @Published private(set) var playing = false
+    @Published private(set) var duration: TimeInterval = 0
+    private var player: AVAudioPlayer?
+    var currentTime: TimeInterval { player?.currentTime ?? 0 }
+
+    func load(_ url: URL) async {
+        let length = await Task.detached(priority: .utility) { () -> TimeInterval in
+            (try? AVAudioPlayer(contentsOf: url))?.duration ?? 0
+        }.value
+        duration = length
+    }
+
+    func toggle(_ url: URL) {
+        if playing { player?.pause(); playing = false; return }
+        if player == nil {
+            player = try? AVAudioPlayer(contentsOf: url)
+            player?.delegate = self
+            if let length = player?.duration, length > 0 { duration = length }
+        }
+        playing = player?.play() ?? false
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        playing = false
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.playing = false
+            self.player?.currentTime = 0
+        }
+    }
+}
+
+/// A poll in the thread, as Messages draws one: each option with how many
+/// chose it, yours ticked. Voting happens in Messages, which this opens.
+private struct NotchPollCard: View {
+    let poll: NotchHermesChatMessage.Poll
+    let messaging: NotchAgentMessagingStrings
+    let vote: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(messaging.poll, systemImage: "chart.bar.doc.horizontal")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+            ForEach(poll.options, id: \.self) { option in
+                HStack(spacing: 8) {
+                    Image(systemName: poll.chosenByMe(option) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(poll.chosenByMe(option) ? 0.95 : 0.45))
+                    Text(option.text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 6)
+                    let count = poll.count(for: option)
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+            }
+            if let vote {
+                Button(messaging.voteInMessages, action: vote)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .frame(maxWidth: 240, alignment: .leading)
+        .background(NotchMessagesStyle.theirs, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A message an iMessage app drew (a business's list picker, a form): the
+/// island cannot draw it, so it says what it is and opens it in Messages.
+private struct NotchInteractiveCard: View {
+    let kind: NotchHermesChatMessage.Interactive
+    let messaging: NotchAgentMessagingStrings
+    let answer: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: kind == .business ? "list.bullet.rectangle.portrait" : "app.badge")
+                .font(.system(size: 16))
+                .foregroundStyle(.white.opacity(0.8))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(messaging.interactiveMessage)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                if let answer {
+                    Button(messaging.answerInMessages, action: answer)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(NotchMessagesStyle.theirs, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

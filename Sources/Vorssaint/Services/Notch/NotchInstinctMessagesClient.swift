@@ -39,6 +39,8 @@ final class NotchInstinctMessagesClient: NotchAgentChatTransport {
 
     // Only touched on `queue`.
     private var chatID: Int64?
+    /// Messages' own id for the chat, which a business is sent to by.
+    private var chatGuid: String?
     /// The newest database row heard, so a watch started again resumes after
     /// it and nothing sent in the gap is lost.
     private var lastRowID: Int64?
@@ -75,9 +77,14 @@ final class NotchInstinctMessagesClient: NotchAgentChatTransport {
     /// The words as one text, then each file as one of its own, as Messages
     /// sends them; the first that fails ends the turn with its reason.
     func send(_ text: String, attachments: [URL]) {
+        // The chat's id is read on `queue`, where loading the thread set it.
+        queue.async { self.send(text, attachments: attachments, chatGuid: self.chatGuid) }
+    }
+
+    private func send(_ text: String, attachments: [URL], chatGuid: String?) {
         var sends: [[String]] = []
-        if !text.isEmpty { sends.append(Support.sendArguments(number: number, text: text)) }
-        sends += attachments.map { Support.sendArguments(number: number, file: $0) }
+        if !text.isEmpty { sends.append(Support.sendArguments(number: number, text: text, chatGuid: chatGuid)) }
+        sends += attachments.map { Support.sendArguments(number: number, file: $0, chatGuid: chatGuid) }
         guard !sends.isEmpty else { return }
         sendQueue.async {
             var failure: NotchHermesChatClient.Event?
@@ -125,6 +132,24 @@ final class NotchInstinctMessagesClient: NotchAgentChatTransport {
     /// Instinct asks in plain words; there is no approval to answer.
     func answer(_ approval: String, choice: NotchAgentApproval.Choice) {}
 
+    /// `imsg react` drives Messages itself, so it reaches only the newest
+    /// message the agent sent; the tapback then comes back on the watch like
+    /// one sent from the phone.
+    func react(_ tapback: MessagesTapback) {
+        queue.async {
+            guard !self.ended else { return }
+            guard let chatID = self.chatID else {
+                self.emit(.tapbackFailed("No conversation yet."))
+                return
+            }
+            self.sendQueue.async {
+                let result = self.run(Support.reactArguments(chatID: chatID, tapback: tapback), timeout: Self.sendTimeout)
+                guard result.timedOut || result.status != 0 else { return }
+                self.emit(.tapbackFailed(result.timedOut ? "Messages did not answer." : Support.reason(result.output)))
+            }
+        }
+    }
+
     // MARK: Reading
 
     private func loadThread() {
@@ -135,19 +160,29 @@ final class NotchInstinctMessagesClient: NotchAgentChatTransport {
             emit(.failed(chats.timedOut ? "imsg did not answer." : Support.reason(chats.output)))
             return
         }
-        chatID = Support.chat(for: number, in: Support.chats(in: chats.output))?.id
+        let chat = Support.chat(for: number, in: Support.chats(in: chats.output))
+        chatID = chat?.id
+        chatGuid = chat?.guid
         var thread: [InstinctMessageRecord] = []
+        var votes: [InstinctPollVote] = []
         if let chatID {
             let history = run(Support.historyArguments(chatID: chatID), timeout: Self.readTimeout)
             guard !ended else { return }
             if Support.isUnreadable(history.output) { emit(.needsFullDiskAccess); return }
             thread = Support.records(in: history.output).filter { Support.belongs($0, to: number) }
+            votes = Support.pollVotes(in: history.output).filter { Support.belongs($0, to: number) }
         }
         for record in thread { note(record) }
+        for vote in votes {
+            seen.insert(vote.guid)
+            lastRowID = max(lastRowID ?? vote.rowID, vote.rowID)
+        }
         emit(.session)
         // A number never texted yet has no thread: an empty one is still the
-        // thread, and the first message sent starts it.
-        emit(.thread(thread.map { Support.message($0) }))
+        // thread, and the first message sent starts it. Votes are rows of
+        // their own; they are counted on the polls they name.
+        let messages = votes.reduce(thread.map { Support.message($0) }) { Support.applying($1, to: $0) }
+        emit(.thread(messages))
         startWatch()
     }
 
@@ -202,6 +237,12 @@ final class NotchInstinctMessagesClient: NotchAgentChatTransport {
     }
 
     private func handle(_ line: String) {
+        if let vote = Support.pollVote(fromLine: line) {
+            guard Support.belongs(vote, to: number), seen.insert(vote.guid).inserted else { return }
+            lastRowID = max(lastRowID ?? vote.rowID, vote.rowID)
+            emit(.pollVoted(vote))
+            return
+        }
         if let reaction = Support.reaction(fromLine: line) {
             guard Support.belongs(reaction, to: number), seen.insert(reaction.guid).inserted else { return }
             lastRowID = max(lastRowID ?? reaction.rowID, reaction.rowID)

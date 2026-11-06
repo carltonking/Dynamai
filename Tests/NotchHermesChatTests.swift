@@ -31,6 +31,66 @@ enum NotchHermesChatTests {
         reachOutContracts(suite)
         voiceContracts(suite)
         instinctContracts(suite)
+        messagesFeatureContracts(suite)
+    }
+
+    /// What the agents send in Messages beyond words, shaped as imsg 0.14
+    /// prints it: polls and their votes, a business's list picker, stickers,
+    /// voice memos and contact cards all reach the page, and the page can
+    /// answer with a tapback or open Messages for the rest.
+    private static func messagesFeatureContracts(_ suite: TestSuite) {
+        typealias Support = InstinctMessagesSupport
+        let agent = "+13605550100"
+        func line(_ fields: String) -> String {
+            #"{"id":10,"guid":"G-1","is_from_me":false,"sender":"+13605550100","chat_identifier":"+13605550100","participants":["+13605550100"],"is_group":false,"created_at":"2026-11-05T10:00:00Z",\#(fields)}"#
+        }
+        let created = line(#""text":"Sent a poll","attachments":[],"balloon_bundle_id":"com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.messages.Polls","poll":{"event":"imessage.poll.created","kind":"created","poll_guid":"P-1","creator":"+13605550100","options":[{"id":"A","text":"Inbox"},{"id":"B","text":"Calendar"}]}"#)
+        let poll = Support.record(fromLine: created)
+        suite.expect(poll?.poll?.options.map(\.text) == ["Inbox", "Calendar"] && poll?.text == "" && poll?.interactive == nil,
+                     "a poll reaches the page as its options, not as the words standing in for it")
+        let vote = #"{"id":11,"guid":"V-1","is_from_me":true,"sender":"","chat_identifier":"+13605550100","participants":["+13605550100"],"is_group":false,"created_at":"2026-11-05T10:01:00Z","text":"","attachments":[],"poll":{"event":"imessage.poll.voted","kind":"voted","poll_guid":"P-1","vote":{"option_id":"B","option_text":"Calendar","participant":"+19145550123","event_type":"selected"}}}"#
+        suite.expect(Support.record(fromLine: vote) == nil,
+                     "a vote is not a message of its own")
+        if let poll, let cast = Support.pollVote(fromLine: vote) {
+            let voted = Support.applying(cast, to: [Support.message(poll)])
+            suite.expect(Support.belongs(cast, to: agent)
+                         && voted.first?.poll.map { $0.count(for: $0.options[1]) == 1 && $0.chosenByMe($0.options[1]) } == true,
+                         "a vote is counted on the poll it names, and yours is ticked")
+            let unvote = vote.replacingOccurrences(of: "\"V-1\"", with: "\"V-2\"")
+                .replacingOccurrences(of: "\"selected\"", with: "\"unselected\"")
+            let taken = Support.pollVote(fromLine: unvote).map { Support.applying($0, to: voted) }
+            suite.expect(taken?.first?.poll?.votes.isEmpty == true, "a vote taken back is taken off the poll")
+        } else {
+            suite.expect(false, "a vote is read from imsg's poll row")
+        }
+
+        let business = line(#""text":"\ufffc","attachments":[],"balloon_bundle_id":"com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension""#)
+        suite.expect(Support.record(fromLine: business)?.interactive == .business,
+                     "a business's list picker is kept, though it has no words the island can show")
+        let link = line(#""text":"https://example.com","attachments":[{"filename":"~/Library/Messages/Attachments/a/1.pluginPayloadAttachment","transfer_name":"1.pluginPayloadAttachment","mime_type":"","missing":false,"is_sticker":false}],"balloon_bundle_id":"com.apple.messages.URLBalloonProvider""#)
+        let linked = Support.record(fromLine: link)
+        suite.expect(linked?.attachments.isEmpty == true && linked?.interactive == nil,
+                     "a link's preview payload is not shown as a file; the link card draws it")
+        let sticker = line(#""text":"","attachments":[{"filename":"/tmp/s.png","transfer_name":"s.png","mime_type":"image/png","missing":false,"is_sticker":true}]"#)
+        suite.expect(Support.record(fromLine: sticker)?.attachments.first?.isImage == true,
+                     "a sticker is shown like the picture it is")
+
+        let memo = NotchHermesChatMessage.Attachment(path: "/tmp/x", name: "Daily brief.caf")
+        let card = NotchHermesChatMessage.Attachment(path: "/tmp/Ada.vcf", name: "Ada.vcf")
+        suite.expect(memo.isAudio && !memo.isImage && card.isContact && !card.isAudio,
+                     "a voice memo plays in the bubble and a contact card shows as one")
+        suite.expect(Support.contactName(inVCard: "BEGIN:VCARD\nVERSION:3.0\nN:Lovelace;Ada;;;\nFN;CHARSET=UTF-8:Ada Lovelace\nEND:VCARD") == "Ada Lovelace"
+                     && Support.contactName(inVCard: "BEGIN:VCARD\nEND:VCARD") == nil,
+                     "a contact card is named by its full name")
+
+        suite.expect(Support.reactArguments(chatID: 971, tapback: .love) == ["react", "--chat-id", "971", "--reaction", "love"]
+                     && MessagesTapback.allCases.map(\.emoji) == ["❤️", "👍", "👎", "😂", "‼️", "❓"],
+                     "a tapback goes to imsg react by the name it takes")
+        suite.expect(Support.messagesURL(for: "+1 (360) 555-0100")?.absoluteString == "imessage:+13605550100"
+                     && Support.messagesURL(for: "urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14")?.absoluteString
+                        == "https://bcrw.apple.com/urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14"
+                     && Support.messagesURL(for: " ") == nil,
+                     "Messages opens on a number's thread, and on a business by its Messages for Business link")
     }
 
     /// Talking to VERTUS: the microphone's states, when a pause ends a
@@ -474,7 +534,7 @@ enum NotchHermesChatTests {
 
         let view = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
         let screen = source("Sources/Vorssaint/UI/Notch/NotchAgentChatScreen.swift")
-        suite.expect(view.contains("case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:\n                NotchAgentChatScreen(service: service, size: pageSize)")
+        suite.expect(view.contains("case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:\n                NotchAgentChatScreen(service: service, size: pageSize)")
                      && screen.contains("case .instinctChat: NotchHermesChatView(size: size, chat: .instinct)")
                      && screen.contains("case .siriChat: NotchSiriPage(size: size)")
                      && screen.contains("NotchHermesChatView(size: size, chat: NotchHermesChatService.service(for: service.selected) ?? .shared)"),
@@ -493,7 +553,7 @@ enum NotchHermesChatTests {
         // The iMessage agents beside Instinct: each its own page, thread,
         // history and preferences, worded as Instinct is under its own name.
         let agents = NotchMessagesAgent.allCases
-        suite.expect(agents.map(\.name) == ["Sauna", "Rho", "Caddy", "Rene", "Iris", "Folk", "Maverick"]
+        suite.expect(agents.map(\.name) == ["Sauna", "Rho", "Caddy", "Rene", "Folk", "Poke"]
                      && agents.allSatisfy { $0.module.messagesAgent == $0 && $0.module.isAgentChat }
                      && Set(agents.map(\.historyFile)).count == agents.count
                      && !agents.map(\.historyFile).contains("instinct-chat.json"),
@@ -503,10 +563,13 @@ enum NotchHermesChatTests {
                      "every page keeps an Option-Command letter of its own")
         let preferenceKeys = agents.flatMap { [$0.enabledKey, $0.numberKey, $0.speakRepliesKey] }
         suite.expect(Set(preferenceKeys).count == preferenceKeys.count
-                     && agents.allSatisfy { Defaults.registeredDefaults[$0.numberKey] as? String == "" }
+                     && agents.allSatisfy { Defaults.registeredDefaults[$0.numberKey] as? String == ($0.builtInHandle ?? "") }
                      && agents.allSatisfy { SettingsBackupSupport.machineStateKeys.contains($0.numberKey) }
                      && !preferenceKeys.contains(DefaultsKey.notchInstinctNumber),
-                     "each agent's number is its own, starts empty and never leaves this Mac in a backup")
+                     "each agent's number is its own, starts empty unless the agent's business id is public, and never leaves this Mac in a backup")
+        suite.expect(NotchMessagesAgent.poke.builtInHandle.map { InstinctMessagesSupport.isBusinessHandle($0) } == true
+                     && agents.filter { $0 != .poke }.allSatisfy { $0.builtInHandle == nil },
+                     "Poke, which has no phone number, is found by its Messages for Business id without being asked for one")
         suite.expect(AppLanguage.allCases.allSatisfy { language in
                          let words = FeatureStrings.notchInstinctChat(language).named("Rho")
                          return [words.title, words.description, words.enable, words.number, words.numberHint,
@@ -514,13 +577,13 @@ enum NotchHermesChatTests {
                              && words.title == "Rho"
                      },
                      "an agent's page names it, never Instinct, in every language")
-        suite.expect(NotchAgentReplySupport.noticeName("maverick") == "MAVERICK"
-                     && NotchAgentReplySupport.noticeName("iris") == "IRIS",
+        suite.expect(NotchAgentReplySupport.noticeName("caddy") == "CADDY"
+                     && NotchAgentReplySupport.noticeName("rene") == "RENE",
                      "an agent's reply notice names it in capitals, as VERTUS's and INSTINCT's do")
         suite.expect(NotchAgentReplySupport.agent(forBannerTitle: "+1 (646) 555-0101", vertusNumber: nil, instinctNumber: nil,
                                                   messagesNumbers: [.rho: "6465550101"]) == "rho"
                      && NotchAgentReplySupport.agent(forBannerTitle: "Folk", vertusNumber: nil, instinctNumber: nil) == "folk"
-                     && NotchAgentReplySupport.agent(forBannerTitle: "Iris Smith", vertusNumber: nil, instinctNumber: nil) == nil,
+                     && NotchAgentReplySupport.agent(forBannerTitle: "Rene Smith", vertusNumber: nil, instinctNumber: nil) == nil,
                      "a Messages banner from an agent's number or saved name is that agent's, and a namesake is not")
 
         // Command and a number picks the agent at that place, read from the
@@ -1108,6 +1171,29 @@ enum NotchHermesChatTests {
         suite.expect(Support.sendArguments(number: " +15551234567 ", text: "hi; rm -rf ~")
                      == ["send", "--to", "+15551234567", "--text", "hi; rm -rf ~"],
                      "a message goes to imsg as one argument, never through a shell")
+        // Apple Messages for Business, as Poke: no number, a business id.
+        let poke = "urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14"
+        // Messages names a business chat any;-;urn:biz:…; asking it for
+        // iMessage;-;urn:biz:… (what --chat-identifier did) failed with -1728.
+        suite.expect(Support.sendArguments(number: " \(poke) ", text: "hi")
+                     == ["send", "--chat-guid", "any;-;\(poke)", "--text", "hi"]
+                     && Support.sendArguments(number: poke, file: URL(fileURLWithPath: "/tmp/a.png"))
+                     == ["send", "--chat-guid", "any;-;\(poke)", "--file", "/tmp/a.png"]
+                     && Support.sendArguments(number: poke, text: "hi", chatGuid: "SMS;-;\(poke)")
+                     == ["send", "--chat-guid", "SMS;-;\(poke)", "--text", "hi"]
+                     && Support.sendArguments(number: "+15551234567", text: "hi", chatGuid: "any;-;+15551234567")
+                     == ["send", "--to", "+15551234567", "--text", "hi"],
+                     "a business is texted by Messages' own id for its chat, which imsg --to cannot reach")
+        suite.expect(Support.chat(fromLine: #"{"id":962,"guid":"any;-;\#(poke)","identifier":"\#(poke)","participants":["\#(poke)"],"is_group":false}"#)?.guid
+                     == "any;-;\(poke)",
+                     "the chat's own id is read from imsg chats")
+        suite.expect(Support.sameHandle(poke, "URN:BIZ:6E67A89B-CD37-4C25-AD21-1B942F2A0F14")
+                     // Both share the last ten of the digits in Poke's id.
+                     && !Support.sameHandle(poke, "urn:biz:aaaaaaaa-bbbb-cccc-dddd-2119422014ef")
+                     && !Support.sameHandle(poke, "+1 211-942-2014")
+                     && Support.chat(for: poke, in: Support.chats(in:
+                        #"{"id":962,"identifier":"urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14","participants":["urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14"],"is_group":false}"#))?.id == 962,
+                     "a business id matches only itself whole, never another business or a number sharing its digits")
         suite.expect(Support.watchArguments(chatID: 5, number: "+15551234567", after: 12)
                      == ["watch", "--json", "--reactions", "--attachments", "--chat-id", "5", "--since-rowid", "12"]
                      && Support.watchArguments(chatID: nil, number: "+15551234567", after: nil)

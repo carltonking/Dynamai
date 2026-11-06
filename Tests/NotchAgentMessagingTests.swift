@@ -47,8 +47,9 @@ enum NotchAgentMessagingTests {
                 + #""created_at": "2026-10-27T10:00:00Z", "attachments": [{"original_path": "~/Library/Messages/Attachments/x/IMG_1.HEIC", "#
                 + #""transfer_name": "IMG_1.HEIC", "is_sticker": false, "missing": false}, {"filename": "s.png", "is_sticker": true}]}"#
             let record = InstinctMessagesSupport.record(fromLine: line)
-            suite.expect(record?.attachments.count == 1 && record?.attachments.first?.name == "IMG_1.HEIC",
-                         "a photo with no words is a message, stickers left out")
+            // A sticker is shown like the picture it is, as Messages shows it.
+            suite.expect(record?.attachments.map(\.name) == ["IMG_1.HEIC", "s.png"],
+                         "a photo with no words is a message, and a sticker on it is shown too")
             suite.expect(record?.attachments.first?.path.hasPrefix("/") == true, "its path is expanded")
             suite.expect(InstinctMessagesSupport.historyArguments(chatID: 3).contains("--attachments")
                          && InstinctMessagesSupport.watchArguments(chatID: 3, number: "x", after: nil).contains("--attachments"),

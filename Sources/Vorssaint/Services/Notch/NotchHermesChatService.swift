@@ -629,6 +629,28 @@ final class NotchHermesChatService: ObservableObject {
                      attachments: outgoing.attachments)
     }
 
+    /// The newest message the agent sent, the only one a tapback from here
+    /// can reach while Messages' private bridge is unavailable.
+    var tapbackTarget: UUID? {
+        guard carriesMessagesThread else { return nil }
+        return messages.last { $0.role == .hermes || $0.role == .proactive }?.id
+    }
+
+    /// Sends a tapback on the agent's newest message. Messages records it and
+    /// the watch brings it back onto the bubble, as from the phone.
+    func react(_ tapback: MessagesTapback) {
+        guard tapbackTarget != nil else { return }
+        client?.react(tapback)
+    }
+
+    /// Opens this conversation in Messages, for what only Messages can do
+    /// here: a business's list picker, a vote, an edit or an unsend.
+    func openInMessages() {
+        guard case .messages(let number) = transport,
+              let url = InstinctMessagesSupport.messagesURL(for: number) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     /// Stops the turn in flight. Hermes reports it as `cancelled` and keeps
     /// whatever it had already written.
     func cancel() {
@@ -756,6 +778,11 @@ final class NotchHermesChatService: ObservableObject {
             // asks for no attention.
             let updated = InstinctMessagesSupport.applying(reaction, to: messages)
             if updated != messages { messages = updated }
+        case .pollVoted(let vote):
+            let updated = InstinctMessagesSupport.applying(vote, to: messages)
+            if updated != messages { messages = updated }
+        case .tapbackFailed(let reason):
+            append(NotchHermesChatMessage(role: .note, text: reason))
         }
     }
 

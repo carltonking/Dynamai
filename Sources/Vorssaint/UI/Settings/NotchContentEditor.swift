@@ -185,7 +185,7 @@ struct NotchPagePreview: View {
         case .siriChat: NotchSiriPage(size: size)
         case .calculator: NotchCalculatorView(size: size)
         case .museChat: NotchHermesChatView(size: size, chat: .muse)
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat:
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:
             if let agent = module.messagesAgent { NotchHermesChatView(size: size, chat: .messages(agent)) }
         }
     }
@@ -420,7 +420,7 @@ extension NotchModule {
         case .siriChat: return Color(red: 0.55, green: 0.40, blue: 0.95)
         case .calculator: return .orange
         case .museChat: return Color(red: 0.35, green: 0.45, blue: 0.95)
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .irisChat, .folkChat, .maverickChat: return Color(red: 0.20, green: 0.70, blue: 0.45)
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return Color(red: 0.20, green: 0.70, blue: 0.45)
         }
     }
 

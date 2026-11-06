@@ -320,6 +320,40 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
     /// result, a choice to confirm (Siri's page only). Optional so a history
     /// saved before they existed still reads.
     var cards: [Card]?
+    /// A poll Messages carries in the thread (Apple's Polls app), with the
+    /// votes on it so far. Optional so a history saved before polls still reads.
+    var poll: Poll?
+    /// A message drawn by an iMessage app the island cannot draw, such as a
+    /// list picker or form a business (Poke) sends; it is answered in Messages.
+    var interactive: Interactive?
+
+    /// A poll as Messages holds it: its options and who chose each one.
+    struct Poll: Codable, Equatable {
+        struct Option: Codable, Equatable, Hashable {
+            let id: String
+            let text: String
+        }
+        struct Vote: Codable, Equatable, Hashable {
+            let optionID: String
+            let participant: String
+            let fromMe: Bool
+        }
+        /// The poll's own id, which every vote names (not the message's).
+        let guid: String
+        let options: [Option]
+        var votes: [Vote] = []
+
+        func count(for option: Option) -> Int { votes.filter { $0.optionID == option.id }.count }
+        func chosenByMe(_ option: Option) -> Bool { votes.contains { $0.optionID == option.id && $0.fromMe } }
+    }
+
+    /// What drew a message the island shows only as a card.
+    enum Interactive: String, Codable, Equatable {
+        /// Apple Messages for Business: list pickers, time pickers, forms.
+        case business
+        /// Any other iMessage app.
+        case app
+    }
 
     /// One of Siri's cards, as data the island draws itself: its words, its
     /// symbol, the buttons on it, what a click on it opens, and the action
@@ -341,11 +375,21 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
         var isImage: Bool { Self.imageExtensions.contains((name as NSString).pathExtension.lowercased())
             || Self.imageExtensions.contains((path as NSString).pathExtension.lowercased()) }
         var url: URL { URL(fileURLWithPath: path) }
+
+        static let audioExtensions: Set<String> = ["caf", "m4a", "mp3", "aac", "wav", "aiff", "aif", "amr", "opus"]
+        /// A voice memo or other sound, played in the bubble as Messages plays it.
+        var isAudio: Bool { Self.audioExtensions.contains(fileExtension) }
+        /// A contact card, shown with the person's name.
+        var isContact: Bool { fileExtension == "vcf" }
+        private var fileExtension: String {
+            let fromName = (name as NSString).pathExtension.lowercased()
+            return fromName.isEmpty ? (path as NSString).pathExtension.lowercased() : fromName
+        }
     }
 
     init(id: UUID = UUID(), role: Role, text: String, date: Date = Date(), source: String? = nil,
          reactions: [Reaction]? = nil, replyTo: UUID? = nil, attachments: [Attachment]? = nil,
-         cards: [Card]? = nil) {
+         cards: [Card]? = nil, poll: Poll? = nil, interactive: Interactive? = nil) {
         self.id = id
         self.role = role
         self.text = text
@@ -355,12 +399,15 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
         self.replyTo = replyTo
         self.attachments = attachments
         self.cards = cards
+        self.poll = poll
+        self.interactive = interactive
     }
 
     /// The same message under another role, keeping everything it carries.
     func with(role: Role) -> NotchHermesChatMessage {
         NotchHermesChatMessage(id: id, role: role, text: text, date: date, source: source,
-                               reactions: reactions, replyTo: replyTo, attachments: attachments, cards: cards)
+                               reactions: reactions, replyTo: replyTo, attachments: attachments, cards: cards,
+                               poll: poll, interactive: interactive)
     }
 }
 
@@ -451,7 +498,7 @@ enum NotchAgentReplySupport {
         if lowered.contains("instinct") { return "instinct" }
         if lowered.contains("vertus") { return "vertus" }
         // A contact saved under the agent's name: the whole title, so a
-        // person called Iris Smith is not mistaken for the agent.
+        // person called Rene Smith is not mistaken for the agent.
         if let named = NotchMessagesAgent.allCases.first(where: { $0.rawValue == lowered }) { return named.rawValue }
         return nil
     }
