@@ -125,6 +125,11 @@ final class NotchHermesChatService: ObservableObject {
             numberKey.flatMap { UserDefaults.standard.string(forKey: $0) }
         }
 
+        /// The page shows only the agent's answers: no tool lines, no
+        /// streamed reasoning. Hermes runs many tools a turn and narrates
+        /// them, which reads as noise in the island.
+        var showsOnlyReplies: Bool { self == .vertus }
+
         /// Instinct has no other way in than iMessage.
         var messagesOnly: Bool {
             if case .messages = self { return true }
@@ -225,7 +230,10 @@ final class NotchHermesChatService: ObservableObject {
                 self.historyStore.save(self.messages)
                 return
             }
-            let merged = NotchHermesChatHistory.restored(saved: saved, current: self.messages)
+            var merged = NotchHermesChatHistory.restored(saved: saved, current: self.messages)
+            // Hermes' page shows only what Hermes says: tool lines saved
+            // before that rule are dropped too.
+            if self.agent.showsOnlyReplies { merged.removeAll { $0.role == .tool } }
             if merged != self.messages { self.messages = merged }
         }
     }
@@ -283,6 +291,9 @@ final class NotchHermesChatService: ObservableObject {
     @Published var dropTargeted = false
     @Published var replyTarget: UUID?
     @Published private(set) var reply = ""
+    /// Hermes' words for the turn in flight, shown only once the turn ends:
+    /// until then they may still turn out to be narration before a tool.
+    private var heldReply = ""
     /// What Siri says it is doing while it works ("Checking your calendar").
     @Published private(set) var status: String?
     /// Cards Siri's tools showed during the turn, for the answer that ends it.
@@ -402,6 +413,7 @@ final class NotchHermesChatService: ObservableObject {
         if state != .off { state = .off }
         // The transcript stays: only Clear Conversation empties it.
         if !reply.isEmpty { reply = "" }
+        heldReply = ""
         pendingCards = []
         if status != nil { status = nil }
         if !thinking.isEmpty { thinking = "" }
@@ -621,6 +633,7 @@ final class NotchHermesChatService: ObservableObject {
         messages.append(message)
         messages = HermesACPSupport.trimmed(messages)
         reply = ""
+        heldReply = ""
         thinking = ""
         working = true
         client?.send(NotchAgentReplySupport.outgoing(outgoing.words, quoting: original?.text),
@@ -679,6 +692,7 @@ final class NotchHermesChatService: ObservableObject {
         messages = []
         historyStore.save([])
         reply = ""
+        heldReply = ""
         thinking = ""
         heldMessage = nil
         unconfirmed = []
@@ -733,10 +747,19 @@ final class NotchHermesChatService: ObservableObject {
                 beginTurn(held)
             }
         case .text(let words):
-            reply += words
+            if agent.showsOnlyReplies { heldReply += words } else { reply += words }
         case .thought(let words):
+            // Hermes' page shows its answer, not how it got there.
+            guard !agent.showsOnlyReplies else { return }
             thinking += words
         case .tool(let title):
+            if agent.showsOnlyReplies {
+                // What Hermes said before running a tool is narration of
+                // the work ("Let me check…"), not the answer: it goes, and
+                // only the words after the last tool stay.
+                heldReply = ""
+                return
+            }
             // Whatever was written before the tool ran belongs above it.
             commitReply()
             thinking = ""
@@ -942,6 +965,10 @@ final class NotchHermesChatService: ObservableObject {
     }
 
     private func commitReply() {
+        if !heldReply.isEmpty {
+            reply += heldReply
+            heldReply = ""
+        }
         let words = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         reply = ""
         let cards = pendingCards

@@ -1418,5 +1418,12 @@ enum NotchHermesChatTests {
                      },
                      "the page is named Hermes, never VERTUS, in every language")
         suite.expect(NotchAgentReplySupport.noticeName("vertus") == "HERMES", "Hermes' reply notice names Hermes")
+
+        let service = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchHermesChatService.swift",
+                                   encoding: .utf8)) ?? ""
+        suite.expect(service.contains("var showsOnlyReplies: Bool { self == .vertus }")
+                     && service.contains("guard !agent.showsOnlyReplies else { return }")
+                     && service.contains("if agent.showsOnlyReplies { heldReply += words } else { reply += words }"),
+                     "Hermes' page shows only its answers: no thinking, no tool lines, no narration before a tool")
     }
 }
