@@ -8,10 +8,10 @@
 "NSBluetoothAlwaysUsageDescription" = "Dynamai, Bluetooth'u yalnızca bağlı çevre birimlerinin pil düzeyini okumak için kullanır. Hiçbir veri Mac'inden çıkmaz.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Dynamai, mikrofonunuzu yalnızca ekran kaydı için açtığınızda kaydeder. Geçici bir bağlantı oluşturmadığınız sürece ses Mac'inizde kalır. Dynamic Island'da VERTUS'a mesaj dikte ederken de dinler.";
+"NSMicrophoneUsageDescription" = "Dynamai, mikrofonunuzu yalnızca ekran kaydı için açtığınızda kaydeder. Geçici bir bağlantı oluşturmadığınız sürece ses Mac'inizde kalır. Dynamic Island'da Hermes'e mesaj dikte ederken de dinler.";
 
 /* macOS Speech Recognition permission prompt. */
-"NSSpeechRecognitionUsageDescription" = "Dynamai, konuşmanızı yalnızca Dynamic Island'da VERTUS'a mesaj dikte ederken metne dönüştürür. Destekleniyorsa tanıma bu Mac'te yapılır; aksi halde sesi Apple işler.";
+"NSSpeechRecognitionUsageDescription" = "Dynamai, konuşmanızı yalnızca Dynamic Island'da Hermes'e mesaj dikte ederken metne dönüştürür. Destekleniyorsa tanıma bu Mac'te yapılır; aksi halde sesi Apple işler.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Dynamai, kameranızı yalnızca açtığınız önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez veya Mac'inizden çıkmaz.";

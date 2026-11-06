@@ -8,10 +8,10 @@
 "NSBluetoothAlwaysUsageDescription" = "Dynamai використовує Bluetooth лише для зчитування заряду підключених периферійних пристроїв. Нічого не залишає ваш Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Dynamai записує звук із мікрофона, лише коли ви вмикаєте його для запису екрана. Аудіо залишається на вашому Mac, якщо ви не вирішите створити тимчасове посилання. Він також слухає, поки ви диктуєте повідомлення VERTUS у Dynamic Island.";
+"NSMicrophoneUsageDescription" = "Dynamai записує звук із мікрофона, лише коли ви вмикаєте його для запису екрана. Аудіо залишається на вашому Mac, якщо ви не вирішите створити тимчасове посилання. Він також слухає, поки ви диктуєте повідомлення Hermes у Dynamic Island.";
 
 /* macOS Speech Recognition permission prompt. */
-"NSSpeechRecognitionUsageDescription" = "Dynamai перетворює мовлення на текст, лише поки ви диктуєте повідомлення VERTUS у Dynamic Island. Розпізнавання виконується на цьому Mac, якщо він це підтримує; інакше звук обробляє Apple.";
+"NSSpeechRecognitionUsageDescription" = "Dynamai перетворює мовлення на текст, лише поки ви диктуєте повідомлення Hermes у Dynamic Island. Розпізнавання виконується на цьому Mac, якщо він це підтримує; інакше звук обробляє Apple.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Dynamai показує зображення з камери лише у відкритому вами вікні попереднього перегляду, щоб ви могли перевірити свій вигляд перед викликом. Нічого не записується й не залишає ваш Mac.";

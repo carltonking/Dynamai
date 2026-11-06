@@ -14,21 +14,9 @@ struct NotchHermesChatSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchHermesChatEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchHermesChatCliPath) private var cliPath = HermesACPSupport.defaultCommand
-    @AppStorage(DefaultsKey.notchHermesChatNumber) private var number = ""
-    /// The number the open conversation was started with; editing it moves
-    /// the page between the iMessage thread and VERTUS on this Mac.
-    @State private var appliedNumber: String?
-    /// People texted lately, to pick VERTUS's Photon line from. Read off the
-    /// main thread when the page opens, never from the body; empty when
-    /// Messages cannot be read.
-    @State private var recentContacts: [InstinctChatRecord] = []
     /// The command the running agent was started with. Opening this page is
     /// not a reason to restart it; editing the field is.
     @State private var appliedCommand: String?
-    /// The VERTUS hub carries the conversation when it is installed, and then
-    /// the command below has nothing to start. Read once when the page opens,
-    /// never from the body.
-    @State private var usesHub = false
     private var text: NotchHermesChatStrings { FeatureStrings.notchHermesChat(l10n.language) }
     private static let editSettleDelay = Duration.milliseconds(700)
 
@@ -38,35 +26,8 @@ struct NotchHermesChatSettingsControls: View {
                 .disabled(!AppFeature.notchHermesChat.isAvailable)
             Text(text.description).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // The page is always Hermes on this Mac, started with this command.
             if enabled {
-                SettingsRow(symbol: "phone", title: text.number) {
-                    HStack(spacing: 4) {
-                        TextField(text.numberPlaceholder, text: $number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 180)
-                        if !recentContacts.isEmpty {
-                            Menu {
-                                ForEach(recentContacts, id: \.id) { contact in
-                                    Button(contact.name.isEmpty ? contact.identifier
-                                           : "\(contact.name) · \(contact.identifier)") {
-                                        number = contact.identifier
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: "clock.arrow.circlepath")
-                            }
-                            .menuStyle(.borderlessButton)
-                            .menuIndicator(.hidden)
-                            .fixedSize()
-                            .help(text.recentChats)
-                            .accessibilityLabel(text.recentChats)
-                        }
-                    }
-                }
-                Text(text.numberHint).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if enabled, !usesHub, !textsVertus {
                 SettingsRow(symbol: "terminal", title: text.cliPath) {
                     TextField(text.cliPathPlaceholder, text: $cliPath)
                         .textFieldStyle(.roundedBorder)
@@ -74,57 +35,25 @@ struct NotchHermesChatSettingsControls: View {
                 }
                 Text(text.cliPathHint).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            if enabled {
                 status
             }
         }
         .onAppear {
             if appliedCommand == nil { appliedCommand = cliPath }
-            if appliedNumber == nil { appliedNumber = number }
-            usesHub = VertusHubSupport.token(home: FileManager.default.homeDirectoryForCurrentUser) != nil
         }
-        .task { recentContacts = await Self.readRecentContacts() }
         .onChange(of: enabled) { _, _ in
             appliedCommand = cliPath
-            appliedNumber = number
             chat.syncWithPreferences()
-        }
-        // Giving or clearing the number switches the page once the typing
-        // settles, not on every keystroke.
-        .task(id: number) {
-            guard enabled, number != appliedNumber else { return }
-            try? await Task.sleep(for: Self.editSettleDelay)
-            guard !Task.isCancelled, number != appliedNumber else { return }
-            appliedNumber = number
-            chat.retry()
         }
         // One restart for a typed command, once it stops changing, rather
         // than one per keystroke.
         .task(id: cliPath) {
-            guard enabled, !usesHub, !textsVertus, cliPath != appliedCommand else { return }
+            guard enabled, cliPath != appliedCommand else { return }
             try? await Task.sleep(for: Self.editSettleDelay)
             guard !Task.isCancelled, cliPath != appliedCommand else { return }
             appliedCommand = cliPath
             chat.retry()
         }
-    }
-
-    private var textsVertus: Bool {
-        !number.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    /// The one-to-one threads Messages lists first, through `imsg chats`.
-    private static func readRecentContacts() async -> [InstinctChatRecord] {
-        await Task.detached(priority: .utility) {
-            guard let imsg = HermesACPSupport.executable(
-                command: InstinctMessagesSupport.defaultCommand,
-                home: FileManager.default.homeDirectoryForCurrentUser,
-                searchPath: ProcessInfo.processInfo.environment["PATH"]) else { return [] }
-            let result = Shell.run(imsg.path, InstinctMessagesSupport.recentChatsArguments(), timeout: 10)
-            guard result.status == 0 else { return [] }
-            return InstinctMessagesSupport.recentContacts(in: result.output)
-        }.value
     }
 
     @ViewBuilder private var status: some View {
@@ -528,7 +457,6 @@ struct NotchHermesChatView: View {
     /// The agent's own mark where the page would otherwise show a chat glyph.
     private var mark: AnyView? {
         switch chat.agent {
-        case .vertus: return Self.vertusMark
         case .messages(let agent):
             return MessagesAgentMark.image(for: agent).map {
                 AnyView(Image(nsImage: $0).renderingMode(.template).resizable().aspectRatio(contentMode: .fit))
@@ -536,21 +464,20 @@ struct NotchHermesChatView: View {
         default: return nil
         }
     }
-    private static let vertusMark = AnyView(VertusMark().fill(style: FillStyle(eoFill: true)))
 
     // MARK: Band and composer
 
-    /// The island's top row carries only the companion, the agent's face: its
-    /// mood already says whether a session is starting, working or stuck, and
-    /// the model behind it is not the user's concern (the settings page names
-    /// it).
+    /// The island's top row carries the agent's name and the companion, the
+    /// agent's face: its mood already says whether a session is starting,
+    /// working or stuck. Hermes' page also names the model it runs on, as a
+    /// menu of the others Hermes offers.
     @ViewBuilder private var status: some View {
         HStack(spacing: 8) {
             // The agent's own mark beside the pages button: which agent this
             // page talks to, at a glance.
             Group {
                 switch chat.agent {
-                case .vertus: VertusWordmark(height: 13)
+                case .vertus: MessagesAgentWordmark(name: "HERMES", height: 13)
                 case .instinct: InstinctWordmark(height: 13)
                 case .siri: SiriWordmark(height: 11)
                 case .muse: MessagesAgentWordmark(name: "MUSE", height: 13, mark: MuseLogo.image)
@@ -562,6 +489,10 @@ struct NotchHermesChatView: View {
             .help(text.title)
             .accessibilityLabel(text.title)
 
+            if chat.agent == .vertus, !chat.availableModels.isEmpty {
+                modelMenu
+            }
+
             if NotchMascotSupport.isEnabled() {
                 NotchMascotView(look: NotchMascotSupport.look(), mood: companionMood, size: 20,
                                 cue: .celebrate, cueID: chat.completedReplies - (cheeredReplies ?? chat.completedReplies))
@@ -569,6 +500,41 @@ struct NotchHermesChatView: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    /// Hermes' models, the one in use checked. Switching waits for the turn
+    /// in flight, as Hermes requires.
+    private var modelMenu: some View {
+        Menu {
+            ForEach(chat.availableModels) { model in
+                Button {
+                    chat.chooseModel(model.id)
+                } label: {
+                    if model.id == chat.currentModel {
+                        Label(model.name, systemImage: "checkmark")
+                    } else {
+                        Text(model.name)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(chat.modelName ?? text.model)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 170, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(.white.opacity(chat.switchingModel ? 0.35 : 0.6))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(chat.working || chat.switchingModel || preview)
+        .help(text.model)
+        .accessibilityLabel(text.model)
     }
 
     /// Thoughtful while Hermes works, puzzled when it cannot be reached, at

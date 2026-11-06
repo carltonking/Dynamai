@@ -4281,11 +4281,12 @@ final class NotchService: ObservableObject {
             NotchNotificationService.shared.received.sink { [weak self] item in
                 guard let self else { return }
                 let defaults = UserDefaults.standard
-                // A text from VERTUS or Instinct reads as the agent's name
-                // alone, as its own replies do, and opens its page.
+                // A text from Instinct or another iMessage agent reads as the
+                // agent's name alone, as its own replies do, and opens its
+                // page. Hermes is never texted: its page is `hermes acp` here.
                 let agent = NotchAgentReplySupport.agent(
                     forBannerTitle: item.content.title,
-                    vertusNumber: defaults.string(forKey: DefaultsKey.notchHermesChatNumber),
+                    vertusNumber: nil,
                     instinctNumber: defaults.string(forKey: DefaultsKey.notchInstinctNumber),
                     messagesNumbers: Dictionary(uniqueKeysWithValues: NotchMessagesAgent.allCases.compactMap { agent in
                         defaults.string(forKey: agent.numberKey).map { (agent, $0) }

@@ -66,7 +66,7 @@ enum NotchAgentMessagingTests {
             suite.expect(agent("+16506309054") == "instinct", "Instinct's number however it is written")
             suite.expect(agent("Instinct AI") == "instinct", "a contact named for it")
             suite.expect(agent("Mom") == nil && agent("") == nil, "everyone else stays as Messages names them")
-            suite.expect(Support.noticeName("vertus") == "VERTUS" && Support.noticeName("instinct") == "INSTINCT",
+            suite.expect(Support.noticeName("vertus") == "HERMES" && Support.noticeName("instinct") == "INSTINCT",
                          "both names in capitals")
         }
     }

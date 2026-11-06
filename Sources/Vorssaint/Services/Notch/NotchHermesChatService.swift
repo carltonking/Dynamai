@@ -109,13 +109,13 @@ final class NotchHermesChatService: ObservableObject {
             }
         }
 
-        /// Where the number this page texts is kept: Instinct's always, VERTUS's
-        /// once its Photon line is given. Siri is never texted.
+        /// Where the number this page texts is kept: Instinct's always. Siri is
+        /// never texted, and Hermes is always the `hermes acp` server on this
+        /// Mac, never an iMessage thread or the VERTUS hub.
         var numberKey: String? {
             switch self {
-            case .vertus: return DefaultsKey.notchHermesChatNumber
             case .instinct: return DefaultsKey.notchInstinctNumber
-            case .siri, .muse: return nil
+            case .vertus, .siri, .muse: return nil
             case .messages(let agent): return agent.numberKey
             }
         }
@@ -301,6 +301,12 @@ final class NotchHermesChatService: ObservableObject {
     @Published private(set) var answering: Set<String> = []
     @Published private(set) var agentName: String?
     @Published private(set) var modelName: String?
+    /// The models Hermes offers this session, for the page's model menu.
+    @Published private(set) var availableModels: [HermesACPProtocol.Model] = []
+    /// The id of the model the session runs on now.
+    @Published private(set) var currentModel: String?
+    /// A switch was asked for and Hermes has not answered yet.
+    @Published private(set) var switchingModel = false
 
     private var client: NotchAgentChatTransport?
     /// Which client's events count: one replaced by retry() or ended by
@@ -404,6 +410,9 @@ final class NotchHermesChatService: ObservableObject {
         if !answering.isEmpty { answering = [] }
         if agentName != nil { agentName = nil }
         if modelName != nil { modelName = nil }
+        if !availableModels.isEmpty { availableModels = [] }
+        if currentModel != nil { currentModel = nil }
+        if switchingModel { switchingModel = false }
     }
 
     /// Tries the command in Settings again, after a failure.
@@ -440,20 +449,8 @@ final class NotchHermesChatService: ObservableObject {
         case .onThisMac:
             break
         }
-        // The hub owns VERTUS when it is installed: one agent for every
-        // surface, rather than a second engine with its own model and memory.
-        if VertusHubSupport.token(home: home) != nil {
-            if state != .connecting { state = .connecting }
-            let current = UUID()
-            generation = current
-            let hub = NotchVertusHubClient(home: home, watchCursor: watchCursor) { [weak self] event in
-                guard let self, self.generation == current else { return }
-                self.handle(event)
-            }
-            client = hub
-            hub.start()
-            return
-        }
+        // The page is Hermes itself: no hub between them, so the models and
+        // the session are Hermes' own.
         let command = HermesACPSupport.command(
             UserDefaults.standard.string(forKey: DefaultsKey.notchHermesChatCliPath))
         guard let executable = HermesACPSupport.executable(
@@ -469,7 +466,8 @@ final class NotchHermesChatService: ObservableObject {
         let client = NotchHermesChatClient(
             executable: executable,
             environment: HermesACPSupport.environment(executable: executable, searchPath: nil),
-            workingDirectory: HermesACPSupport.workingDirectory(home: home)
+            workingDirectory: HermesACPSupport.workingDirectory(home: home),
+            resume: UserDefaults.standard.string(forKey: DefaultsKey.notchHermesChatSession)
         ) { [weak self] event in
             guard let self, self.generation == current else { return }
             self.handle(event)
@@ -685,8 +683,21 @@ final class NotchHermesChatService: ObservableObject {
         heldMessage = nil
         unconfirmed = []
         pendingCards = []
-        // Siri keeps the conversation in its model session: it starts over too.
+        // Siri keeps the conversation in its model session, and Hermes in its
+        // own session store: both start over, and the page forgets the old
+        // Hermes session so the next launch does not pick it back up.
+        if agent == .vertus { UserDefaults.standard.set("", forKey: DefaultsKey.notchHermesChatSession) }
         client?.startOver()
+    }
+
+    /// Moves the conversation to another of Hermes' models, and remembers the
+    /// choice for later sessions. Hermes cannot switch mid-turn.
+    func chooseModel(_ id: String) {
+        guard agent == .vertus, !working, !switchingModel, id != currentModel,
+              availableModels.contains(where: { $0.id == id }), let client else { return }
+        UserDefaults.standard.set(id, forKey: DefaultsKey.notchHermesChatModel)
+        switchingModel = true
+        client.setModel(id)
     }
 
     // MARK: Events
@@ -696,6 +707,25 @@ final class NotchHermesChatService: ObservableObject {
         case .ready(let agent, let model):
             if let agent, !agent.isEmpty { agentName = agent }
             if let model, !model.isEmpty { modelName = model }
+        case .sessionStarted(let id):
+            UserDefaults.standard.set(id, forKey: DefaultsKey.notchHermesChatSession)
+        case .models(let available, let current):
+            availableModels = available
+            currentModel = current
+            modelName = current.flatMap { id in available.first { $0.id == id }?.name ?? id }
+            // The model picked here last time wins over Hermes' default.
+            let chosen = UserDefaults.standard.string(forKey: DefaultsKey.notchHermesChatModel) ?? ""
+            if !chosen.isEmpty, chosen != current, available.contains(where: { $0.id == chosen }) {
+                switchingModel = true
+                client?.setModel(chosen)
+            }
+        case .modelChanged(let id):
+            switchingModel = false
+            currentModel = id
+            modelName = availableModels.first { $0.id == id }?.name ?? id
+        case .modelFailed(let reason):
+            switchingModel = false
+            append(NotchHermesChatMessage(role: .note, text: text.modelSwitchFailed(reason)))
         case .session:
             if state != .ready { state = .ready }
             if let held = heldMessage {

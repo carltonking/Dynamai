@@ -888,6 +888,14 @@ enum DefaultsKey {
     /// is the iMessage thread with it; empty, it talks to VERTUS on this Mac.
     /// Personal, so it never leaves this Mac in a settings backup.
     static let notchHermesChatNumber = "notchHermesChatNumber"
+    /// The Hermes session the agent window's page is, so the conversation
+    /// carries on across launches. Empty until Hermes names one; cleared by
+    /// Clear Conversation. Hermes' own store is per Mac, so it stays here.
+    static let notchHermesChatSession = "notchHermesChatSession"
+    /// The Hermes model chosen on the page, re-applied whenever the session
+    /// is opened again. Empty: whatever Hermes is configured to use. Model
+    /// ids depend on this Mac's Hermes providers, so it stays here too.
+    static let notchHermesChatModel = "notchHermesChatModel"
     // Instinct: the iMessage thread with the hosted Instinct agent, read and
     // sent through the `imsg` tool, held by the island beside VERTUS.
     static let notchInstinctChatEnabled = "notchInstinctChatEnabled"
@@ -1547,6 +1555,8 @@ enum Defaults {
         DefaultsKey.notchHermesChatSpeakReplies: false,
         // Empty: VERTUS on this Mac, as before the iMessage thread existed.
         DefaultsKey.notchHermesChatNumber: "",
+        DefaultsKey.notchHermesChatSession: "",
+        DefaultsKey.notchHermesChatModel: "",
         // Off until asked for: the page reads the Messages database.
         DefaultsKey.notchInstinctChatEnabled: false,
         DefaultsKey.notchInstinctNumber: "",

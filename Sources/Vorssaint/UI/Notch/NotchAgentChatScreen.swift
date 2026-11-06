@@ -196,7 +196,8 @@ private struct NotchAgentSidebarTile: View {
                     .font(.system(size: 14, weight: .bold))
             }
         default:
-            VertusMark().fill(style: FillStyle(eoFill: true)).frame(width: 13, height: 15)
+            // Hermes: its initial, as the agents without a logo have.
+            Text("H").font(.system(size: 14, weight: .bold))
         }
     }
 }

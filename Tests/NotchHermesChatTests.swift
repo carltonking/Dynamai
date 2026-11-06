@@ -26,6 +26,7 @@ enum NotchHermesChatTests {
         instinctSendContracts(suite)
         instinctReactionContracts(suite)
         vertusMessagesContracts(suite)
+        hermesSessionContracts(suite)
         silenceContracts(suite)
         routineReplyContracts(suite)
         reachOutContracts(suite)
@@ -152,7 +153,7 @@ enum NotchHermesChatTests {
 
         let info = NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any]
         suite.expect(!(info?["NSSpeechRecognitionUsageDescription"] as? String ?? "").isEmpty
-                     && (info?["NSMicrophoneUsageDescription"] as? String ?? "").contains("VERTUS"),
+                     && (info?["NSMicrophoneUsageDescription"] as? String ?? "").contains("Hermes"),
                      "the bundle explains why it asks for speech recognition and the microphone")
         let folders = (try? FileManager.default.contentsOfDirectory(atPath: "Resources"))?
             .filter { $0.hasSuffix(".lproj") } ?? []
@@ -1352,14 +1353,70 @@ enum NotchHermesChatTests {
                      && Defaults.registeredDefaults[DefaultsKey.notchHermesChatNumber] as? String == "",
                      "VERTUS's number starts empty and never leaves this Mac in a settings backup")
         let languages = AppLanguage.allCases.map { FeatureStrings.notchHermesChat($0) }
-        suite.expect(languages.allSatisfy { $0.number.contains("VERTUS") && !$0.numberHint.isEmpty },
-                     "every language names the VERTUS number field")
+        suite.expect(languages.allSatisfy { !$0.number.isEmpty && !$0.numberHint.isEmpty },
+                     "every language keeps the number field's words")
 
         let service = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchHermesChatService.swift",
                                    encoding: .utf8)) ?? ""
-        suite.expect(service.contains("case .vertus: return DefaultsKey.notchHermesChatNumber")
+        suite.expect(service.contains("case .vertus, .siri, .muse: return nil")
                      && service.contains("case .messages(let number):\n            connectToMessages(home: home, number: number)")
-                     && service.contains("case .onThisMac:\n            break"),
-                     "the VERTUS page connects through iMessage when its number is set, else as before")
+                     && !service.contains("NotchVertusHubClient(")
+                     && !service.contains("VertusHubSupport.token(home: home)"),
+                     "the Hermes page is never texted and never goes through the VERTUS hub: it is `hermes acp`")
+    }
+
+    /// The agent window's Hermes page is one Hermes session that carries on
+    /// across launches, on whichever of Hermes' models was picked.
+    private static func hermesSessionContracts(_ suite: TestSuite) {
+        let resume = HermesACPProtocol.resumeSession(id: 3, session: "s-1", cwd: "/Users/someone")
+        let resumeParams = resume["params"] as? [String: Any]
+        suite.expect(resume["method"] as? String == "session/resume"
+                     && resume["id"] as? Int == 3
+                     && resumeParams?["sessionId"] as? String == "s-1"
+                     && resumeParams?["cwd"] as? String == "/Users/someone"
+                     && (resumeParams?["mcpServers"] as? [Any])?.isEmpty == true,
+                     "a saved session is picked back up by id, in the same folder, with no extra servers")
+
+        let switchModel = HermesACPProtocol.setModel(id: 4, session: "s-1", modelId: "nous:stepfun/step-3.7-flash:free")
+        let switchParams = switchModel["params"] as? [String: Any]
+        suite.expect(switchModel["method"] as? String == "session/set_model"
+                     && switchParams?["sessionId"] as? String == "s-1"
+                     && switchParams?["modelId"] as? String == "nous:stepfun/step-3.7-flash:free",
+                     "a model is switched for the page's own session")
+
+        let opened: [String: Any] = ["models": [
+            "currentModelId": "nous:b",
+            "availableModels": [
+                ["modelId": "nous:a", "name": "Model A"],
+                ["modelId": "nous:b", "name": ""],
+                ["modelId": "", "name": "No id"],
+                ["name": "Missing id"],
+            ],
+        ]]
+        let models = HermesACPProtocol.models(of: opened)
+        suite.expect(models.available == [.init(id: "nous:a", name: "Model A"), .init(id: "nous:b", name: "nous:b")]
+                     && models.current == "nous:b",
+                     "the page lists Hermes' models in order, named by id when unnamed, skipping rows with no id")
+        let none = HermesACPProtocol.models(of: [:])
+        suite.expect(none.available.isEmpty && none.current == nil, "a session without models offers no menu")
+        suite.expect(HermesACPProtocol.sessionId(of: ["_meta": ["hermes": ["sessionProvenance": ["acpSessionId": "s-2"]]]])
+                        == "s-2",
+                     "a resume Hermes answered with a new session names it in its metadata")
+
+        suite.expect(SettingsBackupSupport.machineStateKeys.isSuperset(of: [DefaultsKey.notchHermesChatSession,
+                                                                            DefaultsKey.notchHermesChatModel])
+                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatSession] as? String == ""
+                     && Defaults.registeredDefaults[DefaultsKey.notchHermesChatModel] as? String == "",
+                     "the session and model start empty and stay with this Mac's Hermes")
+
+        func strings(_ words: NotchHermesChatStrings) -> [String] {
+            Mirror(reflecting: words).children.compactMap { $0.value as? String }
+        }
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+                         strings(FeatureStrings.notchHermesChat(language)).allSatisfy { !$0.contains("VERTUS") }
+                             && FeatureStrings.notchHermesChat(language).title == "Hermes"
+                     },
+                     "the page is named Hermes, never VERTUS, in every language")
+        suite.expect(NotchAgentReplySupport.noticeName("vertus") == "HERMES", "Hermes' reply notice names Hermes")
     }
 }

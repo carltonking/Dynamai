@@ -24,6 +24,15 @@ final class NotchHermesChatClient {
         case ready(agent: String?, model: String?)
         /// `session/new` was answered; prompts can be sent.
         case session
+        /// Hermes named the session this conversation is, so the page can
+        /// resume the same one next launch.
+        case sessionStarted(String)
+        /// The models Hermes offers this session, and the one in use.
+        case models([HermesACPProtocol.Model], current: String?)
+        /// Hermes moved the session to this model.
+        case modelChanged(String)
+        /// Hermes would not switch models; the text is why.
+        case modelFailed(String)
         /// Words of the reply as they stream in.
         case text(String)
         /// Reasoning Hermes chose to stream, shown apart from the reply.
@@ -83,10 +92,10 @@ final class NotchHermesChatClient {
         case cardDone(action: String, result: String)
 
         /// What a failed start reads as when the server said nothing.
-        static let unreachable = "VERTUS did not answer."
+        static let unreachable = "Hermes did not answer."
     }
 
-    private enum Request { case initialize, session, prompt }
+    private enum Request { case initialize, session, resume(String), prompt, setModel(String) }
 
     private let process = Process()
     private let input = Pipe()
@@ -100,15 +109,21 @@ final class NotchHermesChatClient {
     private var nextID = 0
     private var pending: [Int: Request] = [:]
     private var session: String?
+    /// The session to pick up instead of starting one, from an earlier launch.
+    private var resumeId: String?
+    /// Hermes replays a resumed session's history as updates before it
+    /// answers; the page already shows that history, so it is not shown twice.
+    private var replaying = false
     private var queuedPrompt: String?
     private var timeoutWork: DispatchWorkItem?
     private var started = false
     private var ended = false
 
     init?(executable: URL, environment: [String: String], workingDirectory: String,
-          onEvent: @escaping (Event) -> Void) {
+          resume: String? = nil, onEvent: @escaping (Event) -> Void) {
         self.onEvent = onEvent
         self.workingDirectory = workingDirectory
+        resumeId = resume.flatMap { $0.isEmpty ? nil : $0 }
         process.executableURL = executable
         process.arguments = HermesACPSupport.arguments
         process.environment = environment
@@ -171,6 +186,28 @@ final class NotchHermesChatClient {
         }
     }
 
+    /// The person cleared the page: Hermes starts a new session, which the
+    /// page then remembers in place of the old one.
+    func startOver() {
+        queue.async {
+            guard !self.ended, self.session != nil else { return }
+            self.session = nil
+            self.resumeId = nil
+            self.beginSession()
+        }
+    }
+
+    /// Asks Hermes to carry the conversation on another model. Hermes refuses
+    /// while a turn runs; the page only offers it between turns.
+    func setModel(_ modelId: String) {
+        queue.async {
+            guard !self.ended, let session = self.session else { return }
+            self.nextID += 1
+            self.pending[self.nextID] = .setModel(modelId)
+            self.write(HermesACPProtocol.setModel(id: self.nextID, session: session, modelId: modelId))
+        }
+    }
+
     /// Ends the conversation. A server that lingers is stopped.
     func end() {
         let child = process
@@ -204,8 +241,35 @@ final class NotchHermesChatClient {
 
     private func beginSession() {
         nextID += 1
-        pending[nextID] = .session
-        write(HermesACPProtocol.newSession(id: nextID, cwd: workingDirectory))
+        if let resumeId {
+            pending[nextID] = .resume(resumeId)
+            replaying = true
+            write(HermesACPProtocol.resumeSession(id: nextID, session: resumeId, cwd: workingDirectory))
+        } else {
+            pending[nextID] = .session
+            write(HermesACPProtocol.newSession(id: nextID, cwd: workingDirectory))
+        }
+        // Loading a long session from Hermes' store can take a while, but a
+        // server that never answers still fails the page rather than leaving
+        // it connecting.
+        schedule(Self.handshakeTimeout) { [weak self] in
+            self?.finish(.failed(Event.unreachable))
+        }
+    }
+
+    /// The session Hermes opened (or picked back up): prompts can go now.
+    private func opened(_ id: String, result: [String: Any]) {
+        timeoutWork?.cancel()
+        replaying = false
+        session = id
+        emit(.sessionStarted(id))
+        let models = HermesACPProtocol.models(of: result)
+        emit(.models(models.available, current: models.current))
+        emit(.session)
+        if let queued = queuedPrompt {
+            queuedPrompt = nil
+            writePrompt(queued, session: id)
+        }
     }
 
     private func writePrompt(_ text: String, session: String) {
@@ -230,13 +294,13 @@ final class NotchHermesChatClient {
     private func receive(_ chunk: Data) {
         guard !ended else { return }
         for frame in reader.append(chunk) { handle(frame) }
-        if reader.overflowed { finish(.failed("VERTUS wrote more than a conversation.")) }
+        if reader.overflowed { finish(.failed("Hermes wrote more than a conversation.")) }
     }
 
     private func handle(_ frame: HermesACPFrame) {
         switch frame.kind {
         case .notification:
-            guard frame.method == "session/update" else { return }
+            guard frame.method == "session/update", !replaying else { return }
             switch HermesACPProtocol.Update.parse(frame.params) {
             case .text(let text): emit(.text(text))
             case .thought(let text): emit(.thought(text))
@@ -246,7 +310,18 @@ final class NotchHermesChatClient {
         case .request:
             answer(frame)
         case .failure:
-            finish(.failed(frame.failure ?? Event.unreachable))
+            let request = frame.id.flatMap { pending.removeValue(forKey: $0) }
+            switch request {
+            case .resume:
+                // The old session cannot be picked up: a new one takes its place.
+                replaying = false
+                resumeId = nil
+                beginSession()
+            case .setModel:
+                emit(.modelFailed(frame.failure ?? Event.unreachable))
+            default:
+                finish(.failed(frame.failure ?? Event.unreachable))
+            }
         case .response:
             guard let id = frame.id, let request = pending.removeValue(forKey: id) else { return }
             switch request {
@@ -256,17 +331,17 @@ final class NotchHermesChatClient {
                             model: HermesACPProtocol.modelName(of: frame.result)))
                 beginSession()
             case .session:
-                timeoutWork?.cancel()
                 guard let id = HermesACPProtocol.sessionId(of: frame.result) else {
-                    finish(.failed("VERTUS started no session."))
+                    finish(.failed("Hermes started no session."))
                     return
                 }
-                session = id
-                emit(.session)
-                if let queued = queuedPrompt {
-                    queuedPrompt = nil
-                    writePrompt(queued, session: id)
-                }
+                opened(id, result: frame.result)
+            case .resume(let requested):
+                // Hermes answers a resume without the id at the top; its
+                // metadata names a new session when the old one was gone.
+                opened(HermesACPProtocol.sessionId(of: frame.result) ?? requested, result: frame.result)
+            case .setModel(let modelId):
+                emit(.modelChanged(modelId))
             case .prompt:
                 timeoutWork?.cancel()
                 emit(.finished(HermesACPProtocol.Stop.parse(frame.result)))

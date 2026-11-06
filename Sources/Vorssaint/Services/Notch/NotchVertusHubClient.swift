@@ -21,6 +21,8 @@ protocol NotchAgentChatTransport: AnyObject {
     func perform(action: String, button: String)
     /// A tapback on the agent's newest message (Messages threads only).
     func react(_ tapback: MessagesTapback)
+    /// Moves the conversation to another of the agent's models (Hermes only).
+    func setModel(_ modelId: String)
 }
 
 /// Files go to an agent on this Mac by path; Messages carries them as files.
@@ -37,6 +39,9 @@ extension NotchAgentChatTransport {
 
     /// Only a Messages thread takes tapbacks.
     func react(_ tapback: MessagesTapback) {}
+
+    /// Only Hermes offers a choice of model.
+    func setModel(_ modelId: String) {}
 }
 
 /// `hermes acp` never reaches an approval card: the island refuses its

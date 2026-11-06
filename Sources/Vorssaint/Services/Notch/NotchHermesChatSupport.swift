@@ -46,6 +46,28 @@ enum HermesACPProtocol {
         ]
     }
 
+    /// Picks up a session Hermes already holds, so the page stays one
+    /// conversation across launches. Hermes starts a fresh session when the
+    /// id is unknown (pruned, or another machine's), and says which in the
+    /// answer's metadata.
+    static func resumeSession(id: Int, session: String, cwd: String) -> [String: Any] {
+        [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "session/resume",
+            "params": ["sessionId": session, "cwd": cwd, "mcpServers": []],
+        ]
+    }
+
+    static func setModel(id: Int, session: String, modelId: String) -> [String: Any] {
+        [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "session/set_model",
+            "params": ["sessionId": session, "modelId": modelId],
+        ]
+    }
+
     static func prompt(id: Int, session: String, text: String) -> [String: Any] {
         [
             "jsonrpc": "2.0",
@@ -108,6 +130,26 @@ enum HermesACPProtocol {
         let available = models?["availableModels"] as? [[String: Any]] ?? []
         let match = available.first { ($0["modelId"] as? String) == current }
         return (match?["name"] as? String) ?? current
+    }
+
+    /// One model the page can switch the conversation to.
+    struct Model: Equatable, Identifiable {
+        let id: String
+        let name: String
+    }
+
+    /// Every model Hermes offers this session, in its order, and the one in
+    /// use. Hermes sends these with a session (new or resumed), not with
+    /// `initialize`.
+    static func models(of result: [String: Any]) -> (available: [Model], current: String?) {
+        let models = result["models"] as? [String: Any]
+        let available: [Model] = (models?["availableModels"] as? [[String: Any]] ?? []).compactMap { row in
+            guard let id = row["modelId"] as? String, !id.isEmpty else { return nil }
+            let name = (row["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? id
+            return Model(id: id, name: name)
+        }
+        let current = (models?["currentModelId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return (available, current)
     }
 
     // MARK: Notifications
@@ -478,7 +520,7 @@ enum NotchAgentReplySupport {
         case "instinct": return "INSTINCT"
         case "siri": return "SIRI"
         case "muse": return "MUSE"
-        default: return NotchMessagesAgent(rawValue: agent)?.displayName ?? "VERTUS"
+        default: return NotchMessagesAgent(rawValue: agent)?.displayName ?? "HERMES"
         }
     }
 

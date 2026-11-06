@@ -194,6 +194,9 @@ enum SettingsBackupSupport {
         // Whom this person texts is private, and one Mac's Messages thread.
         DefaultsKey.notchInstinctNumber,
         DefaultsKey.notchHermesChatNumber,
+        // A Hermes session and model only mean something to this Mac's Hermes.
+        DefaultsKey.notchHermesChatSession,
+        DefaultsKey.notchHermesChatModel,
     ]).union(NotchMessagesAgent.machineStateKeys)
 
     /// The file's content: an envelope with the format version, the app
