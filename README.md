@@ -1,8 +1,8 @@
 <h1 align="center">Dynamai</h1>
 
 <p align="center">
-  One menu bar icon doing the job of a dozen paid Mac apps.<br>
-  Install only what you use.
+  A Dynamic Island for your Mac, your AI agents in one window,<br>
+  and the job of a dozen paid utilities behind a single menu bar icon.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License GPL 3.0 or later"></a>
 </p>
 
-Dynamai is a personal fork of [Vorssaint](https://github.com/vorssaint/vorssaint-utils), an open-source macOS utility suite. It is not affiliated with or endorsed by the Vorssaint project.
+Dynamai is a native macOS app that lives in your menu bar and around your camera notch. It turns the notch into a Dynamic Island for music, calendars, notes, timers and controls. It puts your AI agents in one place, whether they run on this Mac or answer you over iMessage. And it replaces the utilities Mac users usually buy one by one, with no account, no telemetry and no subscription.
 
 <p align="center">
   <img src="docs/assets/readme/panel-mixer.png" width="196" alt="Volume mixer with per app sliders, one app boosted past 100 percent">
@@ -26,15 +26,18 @@ Dynamai is a personal fork of [Vorssaint](https://github.com/vorssaint/vorssaint
   <img src="docs/assets/readme/panel-utilities.png" width="196" alt="Utilities with cleaner, Homebrew, media tools and clipboard">
 </p>
 
-Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. The utilities Mac users usually buy one by one, together behind a single menu bar icon, with no account, no telemetry and no subscription.
+Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. Everything is local, and everything can be switched off.
+
+## Highlights
+
+- **Dynamic Island.** The camera notch opens into pages for widgets, music, calendar, notes, timers, files, the clipboard and more. Each page has its own shortcut, and one shortcut always brings you back to the widgets.
+- **One window for every agent.** Talk to Hermes running on this Mac, Siri on Apple's on-device model, Meta's Muse, and iMessage agents such as Instinct, Poke and Brea, side by side. Replies arrive like messages, with timestamps, link previews, tapbacks, inline replies and an unread dot.
+- **Your Obsidian notes, in the island.** Edit any note in your vault with Obsidian-style live formatting, math, tables and embeds, and jump between starred notes with ⌘1 to ⌘9.
+- **A calendar you can read at a glance.** Week strip, month grid, agenda and a scrolling day timeline, with countdowns to your next event.
 
 ## Install only what you use
 
 Choose individual features or start with a preset. Uninstalled features stop loading and disappear from the interface; reinstalling restores their settings. Setup asks only for the permissions your choices need.
-
-<p align="center">
-  <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">
-</p>
 
 Reorder or hide panel sections, choose a compact layout, and export settings to another Mac. The app supports more than a dozen languages.
 
@@ -105,13 +108,21 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Everyday tools
 
-- **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
+- **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. The home page holds swipeable screens of widgets. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview, a calculator and file tools.
+- **Agent window.** Every agent's conversation on one screen, with a sidebar to switch between them (⌘1 to ⌘9) and drag to reorder:
+  - **Hermes**, a coding and computer agent that runs on this Mac and keeps one session across launches.
+  - **Siri**, on Apple's on-device language model, with tools for your calendar, reminders, mail and weather.
+  - **Muse**, carried by Meta's Muse app, which Dynamai opens in the background when needed.
+  - **iMessage agents** (Instinct, Sauna, Rho, Caddy, Rene, Folk, Poke and Brea), where the page is your real Messages thread, the same one as on your phone.
+
+  Messages show their time, links open as preview cards, and you can attach files, react, reply by swiping right or dictate. Replies can be read aloud. A reply that lands while you are elsewhere shows the agent's icon by the camera, and texts that arrived while your Mac slept join the thread quietly instead of all announcing at once.
+- **Calendar.** See your week, a month grid, an agenda of what is coming up, or a day timeline that scrolls through the hours with overlapping events side by side and a line at the current time. Count down to the next event in the closed island.
 - **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
-- **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
+- **Notes (Obsidian).** Write in your Obsidian vault from a floating window or the Dynamic Island, with live Markdown formatting, wikilinks, math, tables, embeds and code colouring. Star notes to keep them on the island's top row and open them with ⌘1 to ⌘9. Changes made in Obsidian or synced by iCloud show up within a second.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
 ### Capture and create
@@ -119,7 +130,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Screen capture.** Switch between screenshots, recording, text recognition and color picking in one selector with a pixel magnifier.
 - **Screenshot.** Capture an area, window, screen or scrolling page. Annotate, crop, redact, add backgrounds and watermarks, pin captures, send them through the Share menu or share an expiring link.
 - **Screen recording.** Record with separate system-audio and microphone tracks. Trim, cut, add automatic zooms, blur private details and export video or GIFs, or share an expiring link.
-- **Camera preview.** Check your camera in a floating mirror or Dynamic Island before a call.
+- **Camera preview.** Check your camera in a floating mirror or Dynamic Island before a call, with ⌃⌥⌘W.
 - **Copy text from screen.** Recognize text offline from any screen area, or read a QR code.
 - **Color picker.** Copy a screen color as HEX, RGB, HSL or SwiftUI code.
 - **Media tools.** Compress and edit videos, batch-convert images, add watermarks, make GIFs and extract text, all locally.
@@ -135,7 +146,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Energy and display
 
-- **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
+- **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present. A dedicated engine keeps long jobs alive through lid closes and can fail over to a phone hotspot when the network drops.
 - **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Dynamai turned it off.
@@ -149,11 +160,11 @@ Dynamai is built from source; there are no published releases or automatic updat
 ./build.sh --install        # install it into /Applications
 ```
 
-The first launch after moving from a Vorssaint build carries its settings and data over. macOS permissions belong to the app's identity, so each one has to be granted again once.
+macOS asks for each permission the first time a feature needs it; setup tells you which features use which.
 
 ## Uninstall
 
-To remove Dynamai completely, including its settings, permissions and anything left from the Vorssaint build it replaced:
+To remove Dynamai completely, including its settings and permissions:
 
 ```sh
 ./Tools/uninstall.sh
@@ -196,4 +207,4 @@ See [troubleshooting](docs/TROUBLESHOOTING.md) for launch problems, permissions 
 
 ## License
 
-[GPL 3.0 or later](LICENSE). Dynamai is a modified version of Vorssaint, copyright 2026 Vorssaint, and was modified in 2026 to become Dynamai. The license covers the source code. The Vorssaint name, logo and look are covered separately by [TRADEMARKS.md](TRADEMARKS.md); the app icon still comes from Vorssaint and has to be replaced before Dynamai is shared with anyone.
+[GPL 3.0 or later](LICENSE). Copyright notices for the code Dynamai builds on are kept in the source files, as the license requires.
