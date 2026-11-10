@@ -29,7 +29,7 @@ for DEV in 1 0; do
         print original > "$install_test_dir/Applications/$name.app/content"
     done
     if (( DEV )); then
-        APP_NAME='Dynamai (Developer)'
+        APP_NAME=Dynamai
         EXECUTABLE=DynamaiDeveloper
         PREVIOUS_EXECUTABLE=VorssaintDeveloper
     else
@@ -43,7 +43,8 @@ for DEV in 1 0; do
     if (( DEV )); then
         [[ "${stopped[*]}" == 'DynamaiDeveloper VorssaintDeveloper' ]]
         [[ ! -e "$install_test_dir/Applications/Vorssaint (Developer).app" ]]
-        for name in Vorss 'Vorssaint Utils' Vorssaint Dynamai; do
+        [[ ! -e "$install_test_dir/Applications/Dynamai (Developer).app" ]]
+        for name in Vorss 'Vorssaint Utils' Vorssaint; do
             [[ "$(cat "$install_test_dir/Applications/$name.app/content")" == original ]]
         done
     else

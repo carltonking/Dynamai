@@ -37,7 +37,7 @@ enum AppInfo {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     }
 
-    /// True for the local "Dynamai (Developer)" build (bundle id ends in `.dev`).
+    /// True for the local developer build (bundle id ends in `.dev`).
     /// It is never published and never auto-updates; all work is tested here first.
     static var isDeveloperBuild: Bool {
         (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")

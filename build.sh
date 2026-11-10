@@ -26,8 +26,10 @@ trap cleanup EXIT
 # into the build sweeps like any other ending.
 trap 'exit 1' INT TERM HUP
 
-# Flags: --dev builds the local-only "Dynamai (Developer)" variant (its own
-# bundle id, so it coexists with the official app); --install puts it in /Applications.
+# Flags: --dev builds the developer variant (its own bundle id, preferences
+# and permissions); --install puts it in /Applications. Both variants are
+# named Dynamai and install as /Applications/Dynamai.app: this Mac runs the
+# developer build as its everyday app, so it carries the app's plain name.
 DEV=0
 INSTALL=0
 TEST=0
@@ -43,7 +45,7 @@ for arg in "$@"; do
 done
 
 if (( DEV )); then
-    APP_NAME="Dynamai (Developer)"
+    APP_NAME="Dynamai"
     EXECUTABLE="DynamaiDeveloper"
     APP_BUNDLE_ID="com.dynamai.app.dev"
     # The executable and identity the Developer build had before Dynamai.
@@ -940,7 +942,8 @@ wait_for_install_metadata() {
 # another app in each checkout pollutes application search with stale builds.
 if (( DEV )); then
     for old_bundle in "build/stage/$APP_NAME.app" "build/stage.noindex/$APP_NAME.app" \
-        "build/stage/Vorssaint (Developer).app" "build/stage.noindex/Vorssaint (Developer).app"; do
+        "build/stage/Vorssaint (Developer).app" "build/stage.noindex/Vorssaint (Developer).app" \
+        "build/stage/Dynamai (Developer).app" "build/stage.noindex/Dynamai (Developer).app"; do
         if [[ -d "$old_bundle" ]]; then
             /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
                 -u "$PWD/$old_bundle" >/dev/null 2>&1 || true
@@ -977,7 +980,9 @@ if (( INSTALL )); then
     # app and the official one keep coexisting. The renamed bundles still run
     # the executable stopped above.
     if (( DEV )); then
-        legacies=("Vorssaint (Developer):VorssaintDeveloper")
+        # The developer build was installed as "Dynamai (Developer)" before
+        # it took the app's plain name.
+        legacies=("Vorssaint (Developer):VorssaintDeveloper" "Dynamai (Developer):DynamaiDeveloper")
     else
         legacies=("Vorss:Vorss" "Vorssaint Utils:VorssaintUtils" "Vorssaint:Vorssaint")
     fi
