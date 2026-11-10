@@ -13,6 +13,7 @@ struct NotchAgentChatScreen: View {
     @ObservedObject var service: NotchService
     let size: CGSize
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var unread = NotchAgentUnread.shared
     /// The agent being dragged to a new place, the order shown while it
     /// moves, the place it started from and how far the pointer has gone.
     @State private var dragging: NotchModule?
@@ -40,6 +41,22 @@ struct NotchAgentChatScreen: View {
                 .id(service.selected)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // The chosen agent's page is what is read: its dot goes once the page
+        // is on screen and nothing covers it.
+        .onAppear(perform: markShownRead)
+        .onChange(of: service.selected) { _, _ in markShownRead() }
+        .onChange(of: service.expanded) { _, _ in markShownRead() }
+        .onChange(of: covered) { _, _ in markShownRead() }
+    }
+
+    /// The sections, the app panel or the Command Bar over the conversation.
+    private var covered: Bool {
+        service.showingSections || service.showingAppPanel || service.showingCommandBar
+    }
+
+    private func markShownRead() {
+        guard service.expanded, !covered, service.selected.isAgentChat else { return }
+        unread.markRead(service.selected)
     }
 
     @ViewBuilder private func page(_ size: CGSize) -> some View {
@@ -72,6 +89,7 @@ struct NotchAgentChatScreen: View {
                     let index = shown.firstIndex(of: agent) ?? 0
                     let isDragged = agent == dragging
                     NotchAgentSidebarTile(agent: agent, selected: agent == service.selected,
+                                          unread: unread.contains(agent),
                                           title: agent.title(l10n.language), place: index + 1) {
                         if agent != service.selected { service.select(agent) }
                     }
@@ -146,6 +164,8 @@ struct NotchAgentChatScreen: View {
 private struct NotchAgentSidebarTile: View {
     let agent: NotchModule
     let selected: Bool
+    /// It wrote something that has not been looked at yet.
+    let unread: Bool
     let title: String
     /// Its place in the list, which Command and that number chooses.
     let place: Int
@@ -161,12 +181,26 @@ private struct NotchAgentSidebarTile: View {
             .frame(width: NotchAgentChatScreen.tileSide, height: NotchAgentChatScreen.tileSide)
             .background(selected ? Color.white.opacity(0.9) : Color.white.opacity(hovering ? 0.16 : 0.09), in: shape)
             .overlay { shape.strokeBorder(.white.opacity(selected ? 0 : 0.08), lineWidth: 1) }
+            .overlay(alignment: .topTrailing) {
+                if unread {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                        // A ring of the island's black so the dot reads on a
+                        // lit tile as well as a dark one.
+                        .overlay { Circle().strokeBorder(.black, lineWidth: 1.5) }
+                        .offset(x: 2, y: -2)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: unread)
             .contentShape(shape)
             .onTapGesture(perform: action)
             .onHover { hovering = $0 }
             .help(place <= 9 ? "\(title)  ⌘\(place)" : title)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
+            .accessibilityValue(unread ? FeatureStrings.notch(L10n.shared.language).agentChatUnread : "")
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction { action() }
     }

@@ -1215,8 +1215,19 @@ final class NotchService: ObservableObject {
         // switches over instead of closing, and it never reopens onto one.
         let onAgent = selected.isAgentChat && selectedMetric == nil
             && !showingAppPanel && !showingSections && !showingCommandBar
+        // Every other page goes back to the home page, the widgets, as a
+        // home button would; only the home page itself closes the island.
+        let home = modules.contains(.controls) ? NotchModule.controls : modules.first
+        let onHome = selected == home && selectedMetric == nil
+            && !showingAppPanel && !showingSections && !showingCommandBar
         if expanded {
-            if onAgent { open(regularPage) } else { collapseFromShortcut() }
+            if onAgent {
+                open(regularPage)
+            } else if !onHome, let home {
+                open(home)
+            } else {
+                collapseFromShortcut()
+            }
         } else if reopeningDestination.module.isAgentChat {
             open(regularPage)
         } else {
@@ -1905,6 +1916,12 @@ final class NotchService: ObservableObject {
         let pad = ScratchpadService.shared
         let commandOnly = event.modifierFlags.intersection([.command, .control, .option]) == .command
         let shift = event.modifierFlags.contains(.shift)
+        // Command and a number opens the starred note at that place in the
+        // row, read by key position as the agents' sidebar reads it.
+        if commandOnly, !shift, let place = NotchSupport.agentChatShortcut(keyCode: event.keyCode) {
+            pad.openFavorite(at: place)
+            return true
+        }
         guard let action = ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
                                                                commandOnly: commandOnly,
                                                                shift: shift,
@@ -3776,6 +3793,7 @@ final class NotchService: ObservableObject {
         observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in
             // Sleep ends a screen saver even when its stop goes unannounced.
             self?.updateSession { $0.sleeping = false; $0.screenSaverRunning = false }
+            NotchHermesChatService.resyncMessagesAfterWake()
         }
         observe(workspace, NSWorkspace.screensDidSleepNotification) { [weak self] in
             self?.updateSession { $0.displaysSleeping = true }

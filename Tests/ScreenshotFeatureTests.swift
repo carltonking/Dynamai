@@ -3770,8 +3770,8 @@ enum ScreenshotFeatureTests {
             pointSize: CGSize(width: 600, height: 800)) == 1,
                "copied images with inconsistent metadata safely use 1x")
 
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcutEnabled] as? Bool == false,
-               "the camera preview shortcut ships off like the other quick tools")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcutEnabled] as? Bool == true,
+               "the camera preview shortcut ships on, so the mirror is one key press away")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcut] as? String
                 == "control+option+command:13",
                "the default camera preview shortcut is control option command W")
@@ -3892,6 +3892,39 @@ enum ScreenshotFeatureTests {
                                                    canCreatePad: true,
                                                    canClosePad: true) == .createPad,
                "Command-T creates a scratchpad tab while the pad is focused")
+        // Favorites: starred in order, Command and a number by place, kept
+        // through a rename, and never more than the nine keys can reach.
+        let starred = ScratchpadFavorites.toggling("B.md", in: ScratchpadFavorites.toggling("A.md", in: []))
+        suite.expect(starred == ["A.md", "B.md"] && ScratchpadFavorites.toggling("A.md", in: starred) == ["B.md"],
+               "a star adds the note at the end, and a second one takes it away")
+        suite.expect(ScratchpadFavorites.path(at: 2, in: starred) == "B.md"
+                     && ScratchpadFavorites.path(at: 3, in: starred) == nil
+                     && ScratchpadFavorites.path(at: 0, in: starred) == nil,
+               "Command-2 opens the second favorite and an empty place opens nothing")
+        let nine = (1...9).map { "\($0).md" }
+        suite.expect(ScratchpadFavorites.toggling("ten.md", in: nine) == nine,
+               "a tenth favorite is refused, since no key could open it")
+        suite.expect(ScratchpadFavorites.renaming("A.md", to: "Folder/C.md", in: starred) == ["Folder/C.md", "B.md"]
+                     && ScratchpadFavorites.name(of: "Folder/C.md") == "C",
+               "a renamed note keeps its star and its place, shown by its file name")
+        // Notes read again keep their ids, so reopening is not a tab change.
+        let firstRead = ScratchpadDocument(pads: [
+            ScratchpadPad(id: UUID(), name: "A", text: "a", modifiedAt: nil, path: "A.md"),
+            ScratchpadPad(id: UUID(), name: "B", text: "b", modifiedAt: nil, path: "B.md")
+        ], selectedID: UUID())
+        var shown = firstRead
+        shown.selectedID = firstRead.pads[1].id
+        let reread = ScratchpadDocument(pads: [
+            ScratchpadPad(id: UUID(), name: "A", text: "a, edited in Obsidian", modifiedAt: nil, path: "A.md"),
+            ScratchpadPad(id: UUID(), name: "B", text: "b", modifiedAt: nil, path: "B.md"),
+            ScratchpadPad(id: UUID(), name: "New", text: "", modifiedAt: nil, path: "New.md")
+        ], selectedID: UUID())
+        var rereadSelected = reread
+        rereadSelected.selectedID = reread.pads[1].id
+        let kept = rereadSelected.keepingIDs(of: shown)
+        suite.expect(kept.pads.prefix(2).map(\.id) == shown.pads.map(\.id) && kept.selectedID == shown.selectedID
+                     && kept.pads[0].text == "a, edited in Obsidian" && kept.pads[2].id == reread.pads[2].id,
+               "a note read again keeps its tab's id and selection, with the newer text")
         suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "t",
                                                    commandOnly: true,
                                                    canCreatePad: false,

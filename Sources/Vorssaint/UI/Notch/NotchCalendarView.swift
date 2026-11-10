@@ -11,6 +11,8 @@ struct NotchCalendarView: View {
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var countdownForEvery = false
+    /// The day's hours in place of the agenda list, kept between openings.
+    @AppStorage(DefaultsKey.notchCalendarDayTimeline) private var showingDay = false
     @Environment(\.notchBand) private var band
     /// The day the month grid or the week strip is built around.
     @State private var focus = Date()
@@ -39,7 +41,11 @@ struct NotchCalendarView: View {
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 12) {
                                     agendaHeader
-                                    agenda(now: context.date)
+                                    if showingDay {
+                                        dayTimeline(now: context.date)
+                                    } else {
+                                        agenda(now: context.date)
+                                    }
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             }
@@ -48,7 +54,11 @@ struct NotchCalendarView: View {
                         } else {
                             VStack(spacing: NotchLayout.rowSpacing) {
                                 weekStrip(now: context.date)
-                                agenda(now: context.date)
+                                if showingDay {
+                                    dayTimeline(now: context.date)
+                                } else {
+                                    agenda(now: context.date)
+                                }
                             }
                         }
                     }
@@ -104,6 +114,14 @@ struct NotchCalendarView: View {
                                events: calendar.events, text: text, select: select)
     }
 
+    /// The chosen day's hours, today's until a day is picked.
+    private func dayTimeline(now: Date) -> some View {
+        NotchCalendarDayTimeline(day: selectedDay ?? Calendar.current.startOfDay(for: now), now: now,
+                                 events: calendar.events, text: text) { event in
+            openCalendar(showing: event)
+        }
+    }
+
     private func weekStrip(now: Date) -> some View {
         NotchCalendarWeekStrip(focus: focus, selectedDay: selectedDay, now: now,
                                events: calendar.events, text: text, select: select) {
@@ -157,29 +175,47 @@ struct NotchCalendarView: View {
     /// buttons, the last one apart; the island's own update or pin give way
     /// to it. Elsewhere an empty agenda offers it, and every appointment card
     /// opens it as well.
-    private var rowOpensCalendar: Bool { !band.besideCamera || band.side >= 28 * 4 + 6 }
+    private var rowOpensCalendar: Bool { !band.besideCamera || band.side >= 28 * 5 + 6 * 2 }
 
     /// The arrows step by week over the strip and by month over a grid,
     /// around the way back to today, as Calendar's own toolbar does.
     private var navigation: some View {
-        let byWeek = !showsMonth && !showingMonth
+        // Over the day's hours the arrows step a day at a time, as in
+        // Calendar's Day view.
+        let byDay = showingDay && !showingMonth
+        let byWeek = !byDay && !showsMonth && !showingMonth
         return HStack(spacing: 6) {
+            if !showingMonth || showsMonth {
+                NotchIconButton(symbol: showingDay ? "list.bullet" : "clock", title: text.dayView,
+                                selected: showingDay) {
+                    showingDay.toggle()
+                }
+            }
             HStack(spacing: 0) {
-                NotchIconButton(symbol: "chevron.left", title: byWeek ? text.previousWeek : text.previousMonth) {
-                    byWeek ? moveWeek(-1) : moveMonth(-1)
+                NotchIconButton(symbol: "chevron.left",
+                                title: byDay ? text.previousDay : byWeek ? text.previousWeek : text.previousMonth) {
+                    byDay ? moveDay(-1) : byWeek ? moveWeek(-1) : moveMonth(-1)
                 }
                 NotchIconButton(symbol: "circle.circle", title: text.today) {
                     today(now: Date())
                     showingMonth = false
                 }
-                NotchIconButton(symbol: "chevron.right", title: byWeek ? text.nextWeek : text.nextMonth) {
-                    byWeek ? moveWeek(1) : moveMonth(1)
+                NotchIconButton(symbol: "chevron.right",
+                                title: byDay ? text.nextDay : byWeek ? text.nextWeek : text.nextMonth) {
+                    byDay ? moveDay(1) : byWeek ? moveWeek(1) : moveMonth(1)
                 }
             }
             if rowOpensCalendar {
                 NotchIconButton(symbol: "arrow.up.forward.app", title: text.openCalendar) { openCalendar() }
             }
         }
+    }
+
+    private func moveDay(_ offset: Int) {
+        let from = selectedDay ?? Calendar.current.startOfDay(for: Date())
+        guard let date = Calendar.current.date(byAdding: .day, value: offset, to: from) else { return }
+        selectedDay = Calendar.current.startOfDay(for: date)
+        focus = date
     }
 
     private func moveWeek(_ offset: Int) {
@@ -210,6 +246,8 @@ struct NotchCalendarView: View {
             Group {
                 if let selectedDay {
                     Text(selectedDay, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                } else if showingDay {
+                    Text(text.today)
                 } else {
                     Text(text.week)
                 }

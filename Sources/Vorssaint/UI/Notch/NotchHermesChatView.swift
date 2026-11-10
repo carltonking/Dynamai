@@ -185,9 +185,15 @@ struct NotchHermesChatView: View {
             guard !preview else { return }
             try? await Task.sleep(for: .milliseconds(80))
             typing = true
+            // Already focused from the last opening: no change to answer.
+            NotchFieldCaret.placeAtEnd()
+        }
+        .onChange(of: typing) { _, focused in
+            if focused { NotchFieldCaret.placeAtEnd() }
         }
         .notchBand(leading: { status })
     }
+
 
     // MARK: Conversation
 
@@ -245,9 +251,15 @@ struct NotchHermesChatView: View {
         let next = index + 1 < messages.count ? side(messages[index + 1].role) : nil
         // A run of messages from one side tightens up, and only its last
         // bubble carries the tail, as in Messages.
-        let startsRun = previous != here
+        let stamped = NotchAgentTimestampSupport.startsStretch(
+            previous: index > 0 ? messages[index - 1].date : nil, current: message.date)
+        let startsRun = previous != here || stamped
         let endsRun = next != here || (index + 1 == messages.count && chat.working && here == .theirs)
-        Group {
+            || (index + 1 < messages.count && NotchAgentTimestampSupport.startsStretch(
+                previous: message.date, current: messages[index + 1].date))
+        VStack(spacing: 0) {
+            if stamped { timestamp(message.date) }
+            Group {
             switch here {
             case .mine, .theirs:
                 bubbleRow(message, mine: here == .mine, tail: endsRun)
@@ -259,33 +271,60 @@ struct NotchHermesChatView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
+            }
+            .padding(.top, startsRun && index > 0 && !stamped ? 8 : 0)
         }
-        .padding(.top, startsRun && index > 0 ? 8 : 0)
+    }
+
+    /// The time over a new stretch of the conversation, as Messages centres
+    /// it: the day in bold, the time beside it.
+    private func timestamp(_ date: Date) -> some View {
+        Text(NotchAgentTimestampSupport.label(for: date, now: Date(), locale: l10n.language.formattingLocale()))
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.white.opacity(0.45))
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func bubbleRow(_ message: NotchHermesChatMessage, mine: Bool, tail: Bool) -> some View {
         let swiping = swipedMessage == message.id ? swipeOffset : 0
+        // A link Instinct sent shows as its card alone: the same address
+        // above it as plain text could not be clicked and read as a second
+        // message.
+        let words = previewsLinks && !mine ? InstinctMessagesSupport.wordsBesideLinks(message.text) : message.text
+        let showsBubble = !words.isEmpty || !(message.attachments ?? []).isEmpty
+            || message.poll != nil || message.interactive != nil
         return VStack(alignment: mine ? .trailing : .leading, spacing: 2) {
             quote(message, mine: mine)
-            NotchHermesChatBubble(words: message.text, mine: mine, tail: tail, text: text, messaging: messaging,
-                                  reactions: message.reactions ?? [], attachments: message.attachments ?? [],
-                                  reply: { startReply(to: message.id) },
-                                  edit: mine ? { chat.draft = message.text; typing = true } : nil,
-                                  poll: message.poll, interactive: message.interactive,
-                                  openInMessages: chat.carriesMessagesThread ? { chat.openInMessages() } : nil,
-                                  react: chat.tapbackTarget == message.id ? { chat.react($0) } : nil)
-                .accessibilityLabel("\(mine ? text.you : text.title): \(message.text)")
+            if showsBubble {
+                NotchHermesChatBubble(words: words, mine: mine, tail: tail, text: text, messaging: messaging,
+                                      reactions: message.reactions ?? [], attachments: message.attachments ?? [],
+                                      copied: message.text,
+                                      reply: { startReply(to: message.id) },
+                                      edit: mine ? { chat.draft = message.text; typing = true } : nil,
+                                      poll: message.poll, interactive: message.interactive,
+                                      openInMessages: chat.carriesMessagesThread ? { chat.openInMessages() } : nil,
+                                      react: chat.tapbackTarget == message.id ? { chat.react($0) } : nil)
+                    .accessibilityLabel("\(mine ? text.you : text.title): \(message.text)")
+            }
             if !mine { linkCards(message.text) }
         }
         .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
+        // The exact time under the pointer, as Messages shows it on a swipe.
+        .help(message.date.timeIntervalSince1970 > 0
+              ? message.date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened)
+                .locale(l10n.language.formattingLocale())) : "")
         .offset(x: swiping)
-        // The reply arrow shows from under the bubble as it is swiped.
-        .background(alignment: .trailing) {
+        // The reply arrow shows from under the bubble as it is swiped right.
+        .background(alignment: .leading) {
             Image(systemName: "arrowshape.turn.up.left.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.7))
-                .opacity(min(1, Double(-swiping) / NotchMessagesSwipe.threshold))
-                .padding(.trailing, 6)
+                .opacity(min(1, Double(swiping) / NotchMessagesSwipe.threshold))
+                .padding(.leading, 6)
         }
         .contentShape(Rectangle())
         .onHover { inside in
@@ -356,7 +395,7 @@ struct NotchHermesChatView: View {
         typing = true
     }
 
-    /// A two-finger swipe left on a bubble: it follows the fingers, and let
+    /// A two-finger swipe right on a bubble: it follows the fingers, and let
     /// go far enough it becomes the message the next one replies to.
     private func handleSwipe(_ phase: NotchMessagesSwipe.Phase) -> Bool {
         switch phase {
@@ -364,11 +403,11 @@ struct NotchHermesChatView: View {
             guard let hovered = hoveredMessage ?? swipedMessage,
                   chat.messages.contains(where: { $0.id == hovered && side($0.role) != .aside }) else { return false }
             swipedMessage = hovered
-            swipeOffset = max(-NotchMessagesSwipe.limit, min(0, distance))
+            swipeOffset = min(NotchMessagesSwipe.limit, max(0, distance))
             return true
         case .ended:
             guard let swiped = swipedMessage else { return false }
-            if swipeOffset <= -NotchMessagesSwipe.threshold { startReply(to: swiped) }
+            if swipeOffset >= NotchMessagesSwipe.threshold { startReply(to: swiped) }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
             swipedMessage = nil
             return true
@@ -638,6 +677,25 @@ struct NotchHermesChatView: View {
     }
 }
 
+/// Focusing a field selects everything in it, AppKit's habit, so a draft
+/// kept from the last time the island was open was replaced by the first key
+/// pressed, or had to be clicked into first. The caret goes after the draft
+/// instead, and typing carries on from there. A selection the person made is
+/// left alone: only one covering the whole draft moves.
+enum NotchFieldCaret {
+    static func placeAtEnd() {
+        for delay in [0.0, 0.12] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isFieldEditor else { return }
+                let length = (editor.string as NSString).length
+                let selected = editor.selectedRange()
+                guard length > 0, selected.location == 0, selected.length == length else { return }
+                editor.setSelectedRange(NSRange(location: length, length: 0))
+            }
+        }
+    }
+}
+
 /// The island's black and white: your messages light, the agent's dark.
 enum NotchMessagesStyle {
     static let mine = Color.white.opacity(0.92)
@@ -658,6 +716,9 @@ private struct NotchHermesChatBubble: View {
     /// Tapbacks on the message, drawn on the bubble's top corner.
     var reactions: [NotchHermesChatMessage.Reaction] = []
     var attachments: [NotchHermesChatMessage.Attachment] = []
+    /// What Copy puts on the clipboard when the bubble shows less than the
+    /// message (a link it leaves to its card).
+    var copied: String? = nil
     var reply: (() -> Void)? = nil
     /// Puts your message back in the field to send again, changed.
     var edit: (() -> Void)? = nil
@@ -748,7 +809,7 @@ private struct NotchHermesChatBubble: View {
             if let reply { action("arrowshape.turn.up.left", messaging.reply, reply) }
             action("doc.on.doc", text.copyMessage) {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(words, forType: .string)
+                NSPasteboard.general.setString(copied ?? words, forType: .string)
             }
             if let edit { action("pencil", text.editMessage, edit) }
             if let react {
@@ -1109,7 +1170,7 @@ private struct NotchPendingAttachment: View {
 /// swipe is taken; scrolling up and down is left to the transcript.
 final class NotchMessagesSwipe {
     enum Phase { case moved(CGFloat), ended }
-    /// How far left a bubble is let go to become a reply, and how far it goes.
+    /// How far right a bubble is let go to become a reply, and how far it goes.
     static let threshold: CGFloat = 44
     static let limit: CGFloat = 70
 

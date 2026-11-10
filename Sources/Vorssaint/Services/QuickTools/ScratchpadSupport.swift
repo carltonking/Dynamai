@@ -110,6 +110,61 @@ struct ScratchpadDocument: Equatable {
 /// its matches, since no menu in the app carries them. One table, so both
 /// pads answer the same keys. `commandOnly` is Command without Control or
 /// Option; Shift is its own flag because only G takes it.
+/// The notes starred for the island's top row, as vault-relative paths in the
+/// order they were starred. Command and a number open the one at that place,
+/// so only the first nine are kept.
+enum ScratchpadFavorites {
+    static let limit = 9
+
+    /// Starred if it was not, unstarred if it was; a tenth star is refused.
+    static func toggling(_ path: String, in favorites: [String]) -> [String] {
+        guard !path.isEmpty else { return favorites }
+        if favorites.contains(path) { return favorites.filter { $0 != path } }
+        return favorites.count < limit ? favorites + [path] : favorites
+    }
+
+    /// The note at `place` (one-based, as Command-1 counts), if starred.
+    static func path(at place: Int, in favorites: [String]) -> String? {
+        guard place >= 1, place <= favorites.count else { return nil }
+        return favorites[place - 1]
+    }
+
+    /// A renamed or moved note keeps its place among the favorites.
+    static func renaming(_ old: String, to new: String, in favorites: [String]) -> [String] {
+        guard old != new else { return favorites }
+        return favorites.map { $0 == old ? new : $0 }
+    }
+
+    /// The name a favorite shows: its file name without `.md`.
+    static func name(of path: String) -> String {
+        let file = (path as NSString).lastPathComponent
+        let ext = "." + ScratchpadVaultSupport.markdownExtension
+        return file.lowercased().hasSuffix(ext) ? String(file.dropLast(ext.count)) : file
+    }
+}
+
+extension ScratchpadDocument {
+    /// The same notes read again keep the ids they had, matched by path. A
+    /// fresh id per read made every reopening and every note Obsidian synced
+    /// look like a different tab chosen: the editor was handed its text anew
+    /// and the caret jumped to the end.
+    func keepingIDs(of previous: ScratchpadDocument?) -> ScratchpadDocument {
+        guard let previous else { return self }
+        var ids: [String: UUID] = [:]
+        for pad in previous.pads where !pad.path.isEmpty && ids[pad.path] == nil { ids[pad.path] = pad.id }
+        var next = self
+        var used = Set<UUID>()
+        for index in next.pads.indices {
+            let read = next.pads[index]
+            guard let id = ids[read.path], used.insert(id).inserted else { continue }
+            next.pads[index] = ScratchpadPad(id: id, name: read.name, text: read.text,
+                                             modifiedAt: read.modifiedAt, path: read.path)
+            if read.id == selectedID { next.selectedID = id }
+        }
+        return next
+    }
+}
+
 enum ScratchpadFocusedShortcut {
     enum Action: Equatable {
         case createPad

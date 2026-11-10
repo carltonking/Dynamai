@@ -88,6 +88,11 @@ enum NotchCompactTests {
         func togglePreview() { isPreviewing.toggle() }
         func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
+        @Published var favorites: [String] = []
+        var selectedPadPath: String? { pads.first { $0.id == selectedPadID }?.path }
+        func isFavorite(_ path: String?) -> Bool { path.map(favorites.contains) ?? false }
+        func toggleFavorite(_ path: String?) {}
+        func openFavorite(_ path: String) {}
     }
     struct NotchEmptyView: View {
         let symbol: String

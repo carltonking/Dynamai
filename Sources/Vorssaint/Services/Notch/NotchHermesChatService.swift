@@ -427,6 +427,27 @@ final class NotchHermesChatService: ObservableObject {
         if switchingModel { switchingModel = false }
     }
 
+    /// After the Mac sleeps, the iMessage threads are read again from the
+    /// top once Messages has had a moment to sync: a watch that slept can
+    /// miss rows, or follow a database Messages replaced meanwhile, and the
+    /// page then lagged behind the phone. A thread read again merges quietly.
+    static func resyncMessagesAfterWake() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + wakeResyncDelay) {
+            for service in [instinct, shared] + allMessages where service.carriesMessagesThread {
+                service.resync()
+            }
+        }
+    }
+
+    private static let wakeResyncDelay: TimeInterval = 8
+
+    /// Reads a running thread again; a turn waiting on its answer keeps
+    /// the watch it has.
+    private func resync() {
+        guard client != nil, state == .ready, !working else { return }
+        retry()
+    }
+
     /// Tries the command in Settings again, after a failure.
     func retry() {
         client?.end()
@@ -802,11 +823,18 @@ final class NotchHermesChatService: ObservableObject {
         case .cardDone(let action, let result):
             settleCard(action, result: result)
         case .thread(let thread):
+            // Read before: this is the thread read again (after sleep), and
+            // what it brings that was not here yet is unread.
+            let reread = threadArrived
             threadArrived = true
             unconfirmed = []
             let merged = InstinctMessagesSupport.merged(thread: NotchAgentReplySupport.resolvingReplies(thread),
                                                         current: messages)
-            if merged != messages { messages = merged }
+            if merged != messages {
+                let known = Set(messages.map(\.id))
+                messages = merged
+                if reread, let newest = merged.last(where: { !known.contains($0.id) }) { markUnreadQuietly(newest) }
+            }
         case .delivered(let message):
             confirm(message)
         case .received(let message):
@@ -855,19 +883,23 @@ final class NotchHermesChatService: ObservableObject {
     /// wrote on its own and asks for attention as VERTUS's routines do.
     private func receive(_ message: NotchHermesChatMessage) {
         guard !messages.contains(where: { $0.id == message.id }) else { return }
+        // Written while the Mac slept or was off and only reaching it now, as
+        // Messages syncs: it joins the thread quietly instead of announcing
+        // itself as if it had just come in.
+        let catchingUp = InstinctMessagesSupport.isCatchingUp(sent: message.date, now: Date())
         if InstinctMessagesSupport.isUnprompted(waiting: working, lastAnswer: lastAnswer, at: message.date) {
-            append(message.with(role: .proactive))
-            reachOut(routine: nil)
+            append(message.with(role: .proactive), announce: !catchingUp)
+            if !catchingUp { reachOut(routine: nil) }
             return
         }
         lastAnswer = message.date
         // A reply streamed while it was written (Siri's) is now whole.
         if !reply.isEmpty { reply = "" }
         if status != nil { status = nil }
-        append(message)
+        append(message, announce: !catchingUp)
         guard working else { return }
         completedReplies += 1
-        reactOutsideConversation(.celebrate)
+        if !catchingUp { reactOutsideConversation(.celebrate) }
         working = false
         if let held = heldMessage {
             heldMessage = nil
@@ -937,9 +969,15 @@ final class NotchHermesChatService: ObservableObject {
         }
     }
 
-    private func append(_ message: NotchHermesChatMessage) {
+    /// `announce` false adds the message without a notice or its being read
+    /// aloud; the agent's tile still shows it has something unread.
+    private func append(_ message: NotchHermesChatMessage, announce: Bool = true) {
         messages.append(message)
         messages = HermesACPSupport.trimmed(messages)
+        guard announce else {
+            markUnreadQuietly(message)
+            return
+        }
         notifyIfUnseen(message)
         // Every finished reply and unasked message passes through here, so
         // this is the one place that reads them aloud when the speaker is on.
@@ -1018,9 +1056,19 @@ final class NotchHermesChatService: ObservableObject {
         let onScreen = notch.expanded && notch.selected == agent.module
             && !(notch.showingSections || notch.showingAppPanel || notch.showingCommandBar)
         guard !onScreen else { return }
+        NotchAgentUnread.shared.mark(agent.module)
         let name = agent.noticeName
         notch.show(NotchNotice(event: .agents, title: NotchAgentReplySupport.noticeName(name), detail: "",
                                symbol: agent.module.symbol, chatAgent: name))
+    }
+
+    /// The red dot on the agent's tile, without the notice beside the camera.
+    private func markUnreadQuietly(_ message: NotchHermesChatMessage) {
+        guard message.role == .hermes || message.role == .proactive else { return }
+        let notch = NotchService.shared
+        let onScreen = notch.expanded && notch.selected == agent.module
+            && !(notch.showingSections || notch.showingAppPanel || notch.showingCommandBar)
+        if !onScreen { NotchAgentUnread.shared.mark(agent.module) }
     }
 
     /// VERTUS has something to say, unasked. Nothing waits on it, so unlike

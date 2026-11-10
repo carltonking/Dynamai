@@ -600,7 +600,7 @@ struct NotchView: View {
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
             // One screen for every agent, chosen in its sidebar.
-            case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:
+            case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat:
                 NotchAgentChatScreen(service: service, size: pageSize)
             case .calculator: NotchCalculatorView(size: pageSize)
             }
@@ -843,7 +843,7 @@ extension NotchModule: PanelOrderItem {
         case .siriChat: return FeatureStrings.notchSiriChat(language).title
         case .calculator: return FeatureStrings.notch(language).calculator
         case .museChat: return FeatureStrings.notchMuseChat(language).title
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return messagesAgent?.name ?? ""
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat: return messagesAgent?.name ?? ""
         }
     }
 }

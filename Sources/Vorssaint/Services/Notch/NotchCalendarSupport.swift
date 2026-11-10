@@ -101,6 +101,62 @@ enum NotchCalendarSupport {
         }
     }
 
+    /// A timed event placed on a day's timeline: where it starts and ends,
+    /// in minutes from the day's start, and which of the side-by-side
+    /// columns it takes among the events it overlaps.
+    struct TimelineSlot: Equatable {
+        let event: NotchCalendarEvent
+        let startMinute: Double
+        let endMinute: Double
+        let column: Int
+        let columns: Int
+    }
+
+    /// The shortest an event is drawn, so a five-minute call still has room
+    /// for its name.
+    static let timelineMinimumMinutes: Double = 20
+
+    /// The day's timed events laid out as Calendar's Day view lays them out:
+    /// clipped to the day, and events that overlap side by side, each group
+    /// of overlapping events sharing the width between them.
+    static func timeline(_ events: [NotchCalendarEvent], on day: Date,
+                         calendar: Calendar = .current) -> [TimelineSlot] {
+        guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
+        let dayMinutes = interval.duration / 60
+        typealias Placed = (event: NotchCalendarEvent, start: Double, end: Double)
+        let timed = self.events(events, on: day, calendar: calendar).filter { !$0.allDay }
+        var placed: [Placed] = []
+        for event in timed {
+            let begins: Double = event.start.timeIntervalSince(interval.start) / 60
+            let ends: Double = event.end.timeIntervalSince(interval.start) / 60
+            let start: Double = min(max(0, begins), dayMinutes - timelineMinimumMinutes)
+            let end: Double = min(dayMinutes, max(start + timelineMinimumMinutes, ends))
+            placed.append((event: event, start: start, end: end))
+        }
+        placed.sort { (a: Placed, b: Placed) -> Bool in a.start != b.start ? a.start < b.start : a.end > b.end }
+
+        var slots: [TimelineSlot] = []
+        var group: [(event: NotchCalendarEvent, start: Double, end: Double, column: Int)] = []
+        var columnEnds: [Double] = []
+        var groupEnd = -Double.infinity
+        func closeGroup() {
+            let columns = max(1, columnEnds.count)
+            slots += group.map { TimelineSlot(event: $0.event, startMinute: $0.start, endMinute: $0.end,
+                                              column: $0.column, columns: columns) }
+            group = []
+            columnEnds = []
+        }
+        for item in placed {
+            if item.start >= groupEnd { closeGroup() }
+            let column = columnEnds.firstIndex { $0 <= item.start } ?? columnEnds.count
+            if column == columnEnds.count { columnEnds.append(item.end) } else { columnEnds[column] = item.end }
+            group.append((item.event, item.start, item.end, column))
+            groupEnd = group.count == 1 ? item.end : max(groupEnd, item.end)
+        }
+        closeGroup()
+        return slots
+    }
+
     static func requestFailed(status: EKAuthorizationStatus, hasError: Bool) -> Bool {
         hasError || ![.fullAccess, .denied, .restricted].contains(status)
     }

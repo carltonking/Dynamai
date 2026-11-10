@@ -11,7 +11,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
     // Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
     case museChat
     // The iMessage agents beside Instinct, one page each (`NotchMessagesAgent`).
-    case saunaChat, rhoChat, caddyChat, reneChat, folkChat, pokeChat
+    case saunaChat, rhoChat, caddyChat, reneChat, folkChat, pokeChat, breaChat
     /// LaTeX and keyboard arithmetic, answered as it is typed.
     case calculator
     var id: String { rawValue }
@@ -50,7 +50,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "eye"
         case .hermesChat: return "bubble.left.and.bubble.right"
         case .instinctChat: return "message"
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return "message"
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat: return "message"
         case .siriChat: return "sparkle"
         case .calculator: return "function"
         case .museChat: return "bubble.left"
@@ -78,7 +78,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return "o"
         case .hermesChat: return "h"
         case .instinctChat: return "x"
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return messagesAgent?.shortcutKey ?? ""
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat: return messagesAgent?.shortcutKey ?? ""
         case .siriChat: return "y"
         // Every letter has a page; = is the calculator's sign.
         case .calculator: return "="
@@ -110,7 +110,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .hermesChat: return AppFeature.notchHermesChat.isAvailable(in: defaults)
         case .instinctChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
         // Instinct's feature carries every iMessage agent.
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat: return AppFeature.notchInstinctChat.isAvailable(in: defaults)
         case .siriChat: return AppFeature.notchSiriChat.isAvailable(in: defaults)
         case .calculator: return true
         case .museChat: return AppFeature.notchMuseChat.isAvailable(in: defaults)
@@ -2895,7 +2895,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
-                 .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .calculator:
+                 .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat, .calculator:
                 contentHeight = budget
             }
         }

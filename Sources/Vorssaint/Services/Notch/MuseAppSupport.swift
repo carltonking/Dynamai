@@ -26,6 +26,13 @@ enum MuseAppSupport {
     static let tailLength = 12
     /// A turn that hears nothing back in this long ends rather than spinning.
     static let answerTimeout: TimeInterval = 180
+    /// How often Muse is asked to open (or show its window) while the page
+    /// cannot see it, so a launch in progress is not asked for again.
+    static let summonInterval: TimeInterval = 20
+    /// How long a message waits for Muse to open before it fails.
+    static let openWait: TimeInterval = 25
+    /// A window Muse just opened loads its page before it can take a message.
+    static let windowSettle: TimeInterval = 2
     /// Why a message did not go, shown inside the page's localized line, as
     /// the other transports' own reasons are.
     static let sendFailed = "Muse's message field could not be reached."

@@ -635,6 +635,7 @@ enum DefaultsKey {
     static let scratchpadVaultBookmark = "scratchpadVaultBookmark" // Data: security-scoped bookmark
     static let scratchpadOpenNotes = "scratchpadOpenNotes"        // [String]: vault-relative open notes
     static let scratchpadSelectedNote = "scratchpadSelectedNote"  // vault-relative selected note
+    static let scratchpadFavoriteNotes = "scratchpadFavoriteNotes" // [String]: vault-relative starred notes
     static let scratchpadLegacyImported = "scratchpadLegacyImported"
     /// Set once the settings and data of the identity the app had before it
     /// became Dynamai have been carried over. Unregistered and never backed
@@ -913,6 +914,8 @@ enum DefaultsKey {
     static let notchMuseSpeakReplies = "notchMuseSpeakReplies"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
+    /// The calendar page shows the day's hours instead of the agenda list.
+    static let notchCalendarDayTimeline = "notchCalendarDayTimeline"
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
@@ -1246,7 +1249,9 @@ enum Defaults {
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.notchLiquidGlassEnabled: false,
-        DefaultsKey.clamshellPreferred: false,
+        // Keep Awake means awake with the lid closed too; the option can still
+        // be switched off, and a choice already made stays as it was.
+        DefaultsKey.clamshellPreferred: true,
         DefaultsKey.dimScreenOnLidClose: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
@@ -1508,6 +1513,7 @@ enum Defaults {
         DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,
+        DefaultsKey.notchCalendarDayTimeline: false,
         DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
@@ -1875,7 +1881,9 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
-        DefaultsKey.cameraPreviewShortcutEnabled: false,
+        // On from the start: a look in the mirror before a call is reached
+        // for in a hurry, and Control-Option-Command-W collides with nothing.
+        DefaultsKey.cameraPreviewShortcutEnabled: true,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
         DefaultsKey.wallpaperFilter: "all",

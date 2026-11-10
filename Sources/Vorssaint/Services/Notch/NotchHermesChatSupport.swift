@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Combine
 import Foundation
 
 /// The Agent Client Protocol conversation the island holds with Hermes Agent.
@@ -450,6 +451,78 @@ struct NotchHermesChatMessage: Identifiable, Equatable, Codable {
         NotchHermesChatMessage(id: id, role: role, text: text, date: date, source: source,
                                reactions: reactions, replyTo: replyTo, attachments: attachments, cards: cards,
                                poll: poll, interactive: interactive)
+    }
+}
+
+/// Which agents wrote something the person has not looked at yet, for the
+/// red dot on their tile in the chat screen's sidebar. An agent is marked when
+/// its reply lands off screen and cleared once its page is shown; kept for the
+/// session only, as the island's own notice is.
+final class NotchAgentUnread: ObservableObject {
+    static let shared = NotchAgentUnread()
+
+    @Published private(set) var agents: Set<NotchModule> = []
+
+    func mark(_ agent: NotchModule) {
+        if !agents.contains(agent) { agents.insert(agent) }
+    }
+
+    func markRead(_ agent: NotchModule) {
+        if agents.contains(agent) { agents.remove(agent) }
+    }
+
+    func contains(_ agent: NotchModule) -> Bool { agents.contains(agent) }
+}
+
+/// When a conversation shows the time between its messages, and how, as
+/// Messages does: a centred line over the first message and over any that
+/// comes after a pause or on another day, so a thread read later still says
+/// when each part of it was written.
+enum NotchAgentTimestampSupport {
+    /// A pause this long starts a new stretch of the conversation.
+    static let gap: TimeInterval = 15 * 60
+
+    /// Whether `current` opens a new stretch. A date that never parsed (the
+    /// epoch) has no time worth showing.
+    static func startsStretch(previous: Date?, current: Date, calendar: Calendar = .current) -> Bool {
+        guard current.timeIntervalSince1970 > 0 else { return false }
+        guard let previous, previous.timeIntervalSince1970 > 0 else { return true }
+        return current.timeIntervalSince(previous) >= gap || !calendar.isDate(previous, inSameDayAs: current)
+    }
+
+    /// Messages' wording: Today or Yesterday and the time, the weekday within
+    /// the week, the date beyond it (with the year once it is another year).
+    static func label(for date: Date, now: Date, locale: Locale, calendar: Calendar = .current) -> String {
+        let time = formatter(template: "jmm", locale: locale, calendar: calendar).string(from: date)
+        // Today and Yesterday in the language's own words. Measured from
+        // `now`, not the clock: DateFormatter's relative dates read the
+        // clock itself.
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
+                                           to: calendar.startOfDay(for: now)).day ?? .max
+        if days == 0 || days == 1 {
+            let relative = RelativeDateTimeFormatter()
+            relative.locale = locale
+            relative.calendar = calendar
+            relative.dateTimeStyle = .named
+            relative.formattingContext = .beginningOfSentence
+            return relative.localizedString(from: DateComponents(day: -days)) + " " + time
+        }
+        let startOfToday = calendar.startOfDay(for: now)
+        if let weekAgo = calendar.date(byAdding: .day, value: -6, to: startOfToday), date >= weekAgo, date < now {
+            return formatter(template: "EEEE", locale: locale, calendar: calendar).string(from: date) + " " + time
+        }
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        return formatter(template: sameYear ? "EEEMMMd" : "yMMMd", locale: locale, calendar: calendar)
+            .string(from: date) + " " + time
+    }
+
+    private static func formatter(template: String, locale: Locale, calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter
     }
 }
 

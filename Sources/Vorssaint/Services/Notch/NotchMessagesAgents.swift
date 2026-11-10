@@ -9,7 +9,7 @@ import Foundation
 /// name; the number each is texted at is the person's own and lives only in
 /// this Mac's preferences, never in the source.
 enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
-    case sauna, rho, caddy, rene, folk, poke
+    case sauna, rho, caddy, rene, folk, poke, brea
 
     var id: String { rawValue }
 
@@ -22,6 +22,7 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rene: return "Rene"
         case .folk: return "Folk"
         case .poke: return "Poke"
+        case .brea: return "Brea"
         }
     }
 
@@ -36,6 +37,7 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rene: return .reneChat
         case .folk: return .folkChat
         case .poke: return .pokeChat
+        case .brea: return .breaChat
         }
     }
 
@@ -49,6 +51,8 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
         case .rene: return "e"
         case .folk: return "l"
         case .poke: return "j"
+        // The last letter left.
+        case .brea: return "z"
         }
     }
 
@@ -67,7 +71,7 @@ enum NotchMessagesAgent: String, CaseIterable, Identifiable, Sendable {
     var builtInHandle: String? {
         switch self {
         case .poke: return "urn:biz:6e67a89b-cd37-4c25-ad21-1b942f2a0f14"
-        case .sauna, .rho, .caddy, .rene, .folk: return nil
+        case .sauna, .rho, .caddy, .rene, .folk, .brea: return nil
         }
     }
 

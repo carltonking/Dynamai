@@ -107,7 +107,7 @@ struct NotchEditorStrings {
         case .calculator: return calculatorSummary
         case .museChat: return museChatSummary
         // Instinct's line, naming the other agent: a name in every language.
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat:
             return instinctChatSummary.replacingOccurrences(of: "Instinct", with: module.messagesAgent?.name ?? "")
         }
     }

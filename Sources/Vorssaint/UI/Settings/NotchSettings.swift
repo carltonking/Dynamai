@@ -546,7 +546,7 @@ struct NotchSettings: View {
         case .museChat:
             NotchMuseChatSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat:
             if let agent = module.messagesAgent { NotchInstinctChatSettingsControls(agent: agent) }
         case .mixer, .system, .tools, .calculator:
             EmptyView()
@@ -921,7 +921,7 @@ struct NotchSettings: View {
         case .instinctChat: return .notchInstinctChat
         case .siriChat: return .notchSiriChat
         case .museChat: return .notchMuseChat
-        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat: return .notchInstinctChat
+        case .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat: return .notchInstinctChat
         }
     }
 

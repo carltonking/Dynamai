@@ -16,8 +16,14 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
     static let wikilinkKey = NSAttributedString.Key("VorssaintScratchpadWikilink")
 
     var baseSize: CGFloat
-    var textColor: NSColor
+    var textColor: NSColor {
+        didSet { fadedText = [:] }
+    }
     weak var textView: ScratchpadLiveTextView?
+    /// The text colour at each alpha the styling uses, made once. A colour
+    /// made fresh on every edit never equals the one already in the text, so
+    /// every styled run looked changed and was written again.
+    private var fadedText: [CGFloat: NSColor] = [:]
     private(set) var elements: [ScratchpadLiveElement] = []
     private(set) var revealed: [Bool] = []
     /// Nested list lines and how deep they sit, for the guides Obsidian
@@ -160,8 +166,17 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
     static let codeString = codeColor(dark: NSColor(srgbRed: 0.56, green: 0.82, blue: 0.47, alpha: 1),
                                       light: NSColor(srgbRed: 0.22, green: 0.52, blue: 0.15, alpha: 1))
     static let codePadding: CGFloat = 10
-    var mutedColor: NSColor { Self.faded(textColor, 0.45) }
-    var codeBackground: NSColor { Self.faded(textColor, 0.08) }
+    var mutedColor: NSColor { fadedTextColor(0.45) }
+    var codeBackground: NSColor { fadedTextColor(0.08) }
+    static let highlightBackground = faded(.systemYellow, 0.35)
+    static let tagBackground = faded(.controlAccentColor, 0.15)
+
+    private func fadedTextColor(_ alpha: CGFloat) -> NSColor {
+        if let made = fadedText[alpha] { return made }
+        let made = Self.faded(textColor, alpha)
+        fadedText[alpha] = made
+        return made
+    }
 
     /// `color` at `alpha`, resolved each time it is drawn. `withAlphaComponent`
     /// on a system colour fixes it to whichever appearance is current when it
@@ -222,18 +237,48 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
 
     /// Restyles the whole note. Notes are small enough that one pass per edit
     /// costs less than tracking which blocks an edit can reach: a typed ```
-    /// changes every line after it.
+    /// changes every line after it. The pass is worked out on a copy and only
+    /// the runs that came out different are written back: setting the whole
+    /// note's attributes told the layout manager that all of it changed, and
+    /// every key pressed laid the entire note out again, which in a long note
+    /// left the text trailing behind the typing.
     func restyle(_ storage: NSTextStorage) {
-        elements = ScratchpadLiveMarkdown.elements(in: storage.string)
-        let full = NSRange(location: 0, length: storage.length)
-        storage.setAttributes(baseAttributes, range: full)
-        for element in elements { apply(element, to: storage) }
-        applyHangingIndents(to: storage)
+        let text = storage.string
+        elements = ScratchpadLiveMarkdown.elements(in: text)
+        let styled = NSMutableAttributedString(string: text, attributes: baseAttributes)
+        for element in elements { apply(element, to: styled) }
+        applyHangingIndents(to: styled)
+        Self.copyChangedAttributes(from: styled, to: storage)
+    }
+
+    /// Writes `styled`'s attributes into `storage` only where they differ.
+    static func copyChangedAttributes(from styled: NSAttributedString, to storage: NSMutableAttributedString) {
+        let full = NSRange(location: 0, length: styled.length)
+        guard storage.length == styled.length else {
+            styled.enumerateAttributes(in: full) { wanted, run, _ in
+                guard NSMaxRange(run) <= storage.length else { return }
+                storage.setAttributes(wanted, range: run)
+            }
+            return
+        }
+        styled.enumerateAttributes(in: full) { wanted, run, _ in
+            var location = run.location
+            while location < NSMaxRange(run) {
+                var existing = NSRange()
+                let current = storage.attributes(at: location, longestEffectiveRange: &existing,
+                                                 in: NSRange(location: location, length: NSMaxRange(run) - location))
+                let end = max(location + 1, min(NSMaxRange(existing), NSMaxRange(run)))
+                if !(current as NSDictionary).isEqual(to: wanted) {
+                    storage.setAttributes(wanted, range: NSRange(location: location, length: end - location))
+                }
+                location = end
+            }
+        }
     }
 
     /// A list item, quote or indented line that wraps continues under its
     /// own text, as in Obsidian, rather than back at the left margin.
-    private func applyHangingIndents(to storage: NSTextStorage) {
+    private func applyHangingIndents(to storage: NSMutableAttributedString) {
         let text = storage.string
         let ns = text as NSString
         // Code, front matter, display math and tables keep their own layout.
@@ -310,7 +355,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         refresh()
     }
 
-    private func apply(_ element: ScratchpadLiveElement, to storage: NSTextStorage) {
+    private func apply(_ element: ScratchpadLiveElement, to storage: NSMutableAttributedString) {
         func add(_ key: NSAttributedString.Key, _ value: Any, _ range: NSRange) {
             guard range.length > 0, NSMaxRange(range) <= storage.length else { return }
             storage.addAttribute(key, value: value, range: range)
@@ -335,7 +380,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         case .strikethrough:
             add(.strikethroughStyle, NSUnderlineStyle.single.rawValue, element.content)
         case .highlight:
-            add(.backgroundColor, Self.faded(.systemYellow, 0.35), element.content)
+            add(.backgroundColor, Self.highlightBackground, element.content)
         case .inlineCode:
             add(.font, mono, element.range)
             add(.backgroundColor, codeBackground, element.content)
@@ -348,7 +393,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
             add(Self.wikilinkKey, target, element.content)
         case .tag:
             add(.foregroundColor, NSColor.controlAccentColor, element.range)
-            add(.backgroundColor, Self.faded(.controlAccentColor, 0.15), element.range)
+            add(.backgroundColor, Self.tagBackground, element.range)
         case .bullet:
             break
         case .task(let checked, _):
@@ -381,7 +426,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         case .embed:
             break
         case .comment:
-            add(.foregroundColor, Self.faded(textColor, 0.35), element.range)
+            add(.foregroundColor, fadedTextColor(0.35), element.range)
         case .callout:
             addTrait(.boldFontMask, element.content)
             add(.foregroundColor, NSColor.controlAccentColor, element.content)
@@ -394,7 +439,7 @@ final class ScratchpadLiveStyler: NSObject, NSTextStorageDelegate, NSLayoutManag
         // picture's source is all hidden, so only its markers are dimmed.
         if element.replaced != nil {
             add(.foregroundColor, mutedColor, element.range)
-            if element.content != element.range { add(.foregroundColor, Self.faded(textColor, 0.85), element.content) }
+            if element.content != element.range { add(.foregroundColor, fadedTextColor(0.85), element.content) }
         } else {
             for range in element.hidden + element.drawn { add(.foregroundColor, mutedColor, range) }
         }

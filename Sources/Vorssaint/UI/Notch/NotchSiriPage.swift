@@ -35,6 +35,11 @@ struct NotchSiriPage: View {
             guard !preview else { return }
             try? await Task.sleep(for: .milliseconds(80))
             typing = true
+            // Already focused from the last opening: no change to answer.
+            NotchFieldCaret.placeAtEnd()
+        }
+        .onChange(of: typing) { _, focused in
+            if focused { NotchFieldCaret.placeAtEnd() }
         }
         .notchBand(leading: {
             SiriWordmark(height: 11)

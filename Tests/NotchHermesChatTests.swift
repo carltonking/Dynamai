@@ -535,7 +535,7 @@ enum NotchHermesChatTests {
 
         let view = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
         let screen = source("Sources/Vorssaint/UI/Notch/NotchAgentChatScreen.swift")
-        suite.expect(view.contains("case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat:\n                NotchAgentChatScreen(service: service, size: pageSize)")
+        suite.expect(view.contains("case .hermesChat, .instinctChat, .siriChat, .museChat, .saunaChat, .rhoChat, .caddyChat, .reneChat, .folkChat, .pokeChat, .breaChat:\n                NotchAgentChatScreen(service: service, size: pageSize)")
                      && screen.contains("case .instinctChat: NotchHermesChatView(size: size, chat: .instinct)")
                      && screen.contains("case .siriChat: NotchSiriPage(size: size)")
                      && screen.contains("NotchHermesChatView(size: size, chat: NotchHermesChatService.service(for: service.selected) ?? .shared)"),
@@ -554,7 +554,7 @@ enum NotchHermesChatTests {
         // The iMessage agents beside Instinct: each its own page, thread,
         // history and preferences, worded as Instinct is under its own name.
         let agents = NotchMessagesAgent.allCases
-        suite.expect(agents.map(\.name) == ["Sauna", "Rho", "Caddy", "Rene", "Folk", "Poke"]
+        suite.expect(agents.map(\.name) == ["Sauna", "Rho", "Caddy", "Rene", "Folk", "Poke", "Brea"]
                      && agents.allSatisfy { $0.module.messagesAgent == $0 && $0.module.isAgentChat }
                      && Set(agents.map(\.historyFile)).count == agents.count
                      && !agents.map(\.historyFile).contains("instinct-chat.json"),
@@ -1135,6 +1135,34 @@ enum NotchHermesChatTests {
         suite.expect(links.map(\.absoluteString) == ["https://example.com/a", "http://www.apple.com"],
                      "web links come in order, once each; phone numbers and addresses are not pages")
         suite.expect(Support.links(in: "no links here").isEmpty, "words without links have no cards")
+        suite.expect(Support.wordsBesideLinks("https://www.investing.com/news/stock-market-news/afterhours-movers-ttd") == ""
+                     && Support.wordsBesideLinks("Read this: https://example.com/a today") == "Read this: today"
+                     && Support.wordsBesideLinks("Top\nhttps://example.com/a\nBottom") == "Top\nBottom"
+                     && Support.wordsBesideLinks("call tel:5551234567") == "call tel:5551234567"
+                     && Support.wordsBesideLinks("no links here") == "no links here",
+                     "a link that gets a card is not also shown as plain text; the words around it stay")
+        let sentAt = Date(timeIntervalSince1970: 1_800_000_000)
+        suite.expect(!Support.isCatchingUp(sent: sentAt, now: sentAt.addingTimeInterval(20))
+                     && Support.isCatchingUp(sent: sentAt, now: sentAt.addingTimeInterval(3 * 3600))
+                     && !Support.isCatchingUp(sent: Date(timeIntervalSince1970: 0), now: sentAt),
+                     "a message from hours ago reaching the Mac on waking is catching up, not arriving")
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let english = Locale(identifier: "en_US")
+        let noon = Date(timeIntervalSince1970: 1_800_014_400) // Friday 15 January 2027, 12:00 UTC
+        suite.expect(NotchAgentTimestampSupport.startsStretch(previous: nil, current: noon, calendar: utc)
+                     && !NotchAgentTimestampSupport.startsStretch(previous: noon, current: noon.addingTimeInterval(600), calendar: utc)
+                     && NotchAgentTimestampSupport.startsStretch(previous: noon, current: noon.addingTimeInterval(16 * 60), calendar: utc)
+                     && !NotchAgentTimestampSupport.startsStretch(previous: nil, current: Date(timeIntervalSince1970: 0), calendar: utc),
+                     "the time shows over the first message and after a pause of a quarter hour, as Messages does")
+        let today = NotchAgentTimestampSupport.label(for: noon, now: noon.addingTimeInterval(60), locale: english, calendar: utc)
+        let yesterday = NotchAgentTimestampSupport.label(for: noon.addingTimeInterval(-86_400), now: noon, locale: english, calendar: utc)
+        let earlier = NotchAgentTimestampSupport.label(for: noon.addingTimeInterval(-3 * 86_400), now: noon, locale: english, calendar: utc)
+        let older = NotchAgentTimestampSupport.label(for: noon.addingTimeInterval(-40 * 86_400), now: noon, locale: english, calendar: utc)
+        suite.expect(today.hasPrefix("Today") && today.contains("12:00")
+                     && yesterday.hasPrefix("Yesterday") && earlier.hasPrefix("Tuesday")
+                     && older.contains("Dec 6, 2026") && older.contains("12:00"),
+                     "times read Today, Yesterday, a weekday within the week and a date beyond it: \(today) | \(yesterday) | \(earlier) | \(older)")
 
         // Turns and reaching out.
         let now = Date(timeIntervalSince1970: 1_800_000_000)

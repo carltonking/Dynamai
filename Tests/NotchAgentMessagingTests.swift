@@ -58,6 +58,19 @@ enum NotchAgentMessagingTests {
                          == ["send", "--to", "+1555", "--file", "/tmp/notes.pdf"], "a file is sent on its own")
         }
 
+        suite.run("an agent's unread dot stays until its page is read") {
+            let unread = NotchAgentUnread()
+            unread.mark(.hermesChat)
+            unread.mark(.instinctChat)
+            unread.mark(.hermesChat)
+            suite.expect(unread.agents == [.hermesChat, .instinctChat], "each agent is marked once")
+            unread.markRead(.hermesChat)
+            suite.expect(!unread.contains(.hermesChat) && unread.contains(.instinctChat),
+                         "reading one agent leaves the other's dot")
+            unread.markRead(.siriChat)
+            suite.expect(unread.agents == [.instinctChat], "reading an agent with nothing new changes nothing")
+        }
+
         suite.run("agent texts show as the agent's name") {
             func agent(_ title: String) -> String? {
                 Support.agent(forBannerTitle: title, vertusNumber: "+1 (628) 789-6792", instinctNumber: "+1 (650) 630-9054")

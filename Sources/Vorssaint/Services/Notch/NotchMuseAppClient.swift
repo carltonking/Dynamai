@@ -41,7 +41,12 @@ final class NotchMuseAppClient: NotchAgentChatTransport {
     private var dirty = true
     private var observer: AXObserver?
     private var observedPID: pid_t = 0
-    private var launched = false
+    /// When Muse was last asked to open or show its window. Asked again
+    /// after a while rather than once per client: Muse quit or its window
+    /// closed later still has to come back without the person opening it.
+    private var lastSummoned: Date?
+    /// A message is waiting for Muse to open or show its window.
+    private var waitingSince: Date?
     private var ended = false
 
     init(history: [NotchHermesChatMessage], returnToIsland: @escaping () -> Void,
@@ -110,12 +115,17 @@ final class NotchMuseAppClient: NotchAgentChatTransport {
         else { return report(.notInstalled) }
         guard AXIsProcessTrusted() else { return report(.needsAccessibility) }
         guard let muse = Self.muse() else {
-            launchMuse()
+            summonMuse()
             return report(.noWindow)
         }
         watch(muse.processIdentifier)
         let app = AXUIElementCreateApplication(muse.processIdentifier)
-        guard let window = Self.window(of: app) else { return report(.noWindow) }
+        guard let window = Self.window(of: app) else {
+            // Running with its window closed: the window is asked back,
+            // behind the person's work, rather than waiting for them.
+            summonMuse()
+            return report(.noWindow)
+        }
         guard let log = Self.find(in: window, depth: 0, where: {
             Self.string($0, kAXSubroleAttribute) == Support.logSubrole
         }) else { return report(.noConversation) }
@@ -169,11 +179,16 @@ final class NotchMuseAppClient: NotchAgentChatTransport {
         emit(.museProblem(problem))
     }
 
-    /// Muse opens behind the person's work the first time it is needed.
-    private func launchMuse() {
-        guard !launched, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Support.bundleIdentifier)
+    /// Muse opens behind the person's work whenever it is needed: launched
+    /// when it is not running, and asked for its window when it runs without
+    /// one (opening a running app reopens it, which brings its window back).
+    /// It is never brought forward here; a send does that for a moment.
+    private func summonMuse() {
+        let now = Date()
+        if let lastSummoned, now.timeIntervalSince(lastSummoned) < Support.summonInterval { return }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Support.bundleIdentifier)
         else { return }
-        launched = true
+        lastSummoned = now
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] _, _ in
@@ -185,14 +200,40 @@ final class NotchMuseAppClient: NotchAgentChatTransport {
 
     private func pump() {
         guard !sending, !ended, let next = queue.first else { return }
-        queue.removeFirst()
-        guard AXIsProcessTrusted(), let muse = Self.muse() else {
+        guard AXIsProcessTrusted() else {
+            queue.removeFirst()
             awaitingSince = nil
-            let missing: Support.Problem = AXIsProcessTrusted() ? .noWindow : .needsAccessibility
-            emit(.museProblem(missing))
+            emit(.museProblem(.needsAccessibility))
             emit(.turnFailed(MuseAppSupport.sendFailed))
             return pump()
         }
+        // Muse closed, or open without its window: it is opened behind the
+        // person's work and the message waits for it, instead of failing
+        // and leaving them to open Muse by hand.
+        guard let muse = Self.muse(),
+              Self.window(of: AXUIElementCreateApplication(muse.processIdentifier)) != nil else {
+            let since = waitingSince ?? Date()
+            waitingSince = since
+            guard Date().timeIntervalSince(since) < Support.openWait else {
+                waitingSince = nil
+                queue.removeFirst()
+                awaitingSince = nil
+                emit(.museProblem(.noWindow))
+                emit(.turnFailed(MuseAppSupport.sendFailed))
+                return pump()
+            }
+            summonMuse()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.pump() }
+            return
+        }
+        if waitingSince != nil {
+            // Its window just came up: the page inside it needs a moment
+            // before its message field is there to click.
+            waitingSince = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + Support.windowSettle) { [weak self] in self?.pump() }
+            return
+        }
+        queue.removeFirst()
         sending = true
         let previous = NSWorkspace.shared.frontmostApplication
         let fromHere = previous?.processIdentifier == ProcessInfo.processInfo.processIdentifier

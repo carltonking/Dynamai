@@ -37,10 +37,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             guard hasLoaded, !isReplacingText, var document else { return }
             document.updateSelectedText(text, modifiedAt: Date())
             self.document = document
-            pads = document.pads
+            // The tabs are not republished per keystroke: what they show
+            // (names, order) does not change while typing, and handing every
+            // view that watches them a new list on each key made typing lag.
             scheduleSave()
         }
     }
+    /// The notes starred for the island's row, vault-relative, in order.
+    @Published private(set) var favorites: [String] =
+        UserDefaults.standard.stringArray(forKey: DefaultsKey.scratchpadFavoriteNotes) ?? []
 
     private let hotkey = QuickToolHotkey(id: 18)
     private var panel: NSPanel?
@@ -59,6 +64,12 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// newer date on disk means Obsidian (or iCloud) changed the note.
     private var knownFileDates: [String: Date] = [:]
     private var externalSyncTimer: Timer?
+    /// The bookmark and path the vault was last resolved from. Resolving a
+    /// security-scoped bookmark is slow, and it ran on every opening.
+    private var vaultSource: (bookmark: Data?, path: String?)?
+    /// A background read of the notes is under way, and which store it read.
+    private var preloading = false
+    private var storeGeneration = 0
     private(set) var modalInteractionActive = false
 
     private override init() {
@@ -79,6 +90,37 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             hide()
             // Uninstalled in the hub: nothing stays resident.
             panel = nil
+        } else {
+            preload()
+        }
+    }
+
+    /// Reads the open notes off the main thread before the page is first
+    /// opened, so the first opening does not wait on the vault: a note
+    /// iCloud has to fetch could hold the app for seconds.
+    private func preload() {
+        guard !hasLoaded, !preloading, document == nil else { return }
+        refreshVault()
+        guard vaultURL != nil else { return }
+        preloading = true
+        let generation = storeGeneration
+        let reader = store
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            var reading = reader
+            let loaded = try? reading.load()
+            let store = reading
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.preloading = false
+                // Loaded meanwhile on the main thread, or the vault changed:
+                // this read is stale.
+                guard let loaded, !self.hasLoaded, self.document == nil,
+                      generation == self.storeGeneration else { return }
+                self.store = store
+                self.apply(loaded)
+                self.hasLoaded = true
+                self.rememberFileDates()
+            }
         }
     }
 
@@ -204,9 +246,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         if hasLoaded {
             flushSave()
             if saveFailed { return true }
+            // Already in memory: only a note changed outside is read again,
+            // so opening costs a few stat calls instead of every open note
+            // read from the vault on the main thread.
+            if document != nil, !openNotesChangedOnDisk() { return true }
         }
         do {
-            let loaded = try store.load()
+            let loaded = try store.load().keepingIDs(of: document)
             apply(loaded)
             hasLoaded = true
             rememberFileDates()
@@ -273,13 +319,16 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// save's own conflict check decides between the two versions.
     private func checkExternalChanges() {
         guard hasLoaded, pendingSave == nil, !saveFailed, !isReplacingText else { return }
-        let changed = pads.contains { pad in
+        guard openNotesChangedOnDisk(), let loaded = try? store.load() else { return }
+        apply(loaded.keepingIDs(of: document))
+        rememberFileDates()
+    }
+
+    private func openNotesChangedOnDisk() -> Bool {
+        pads.contains { pad in
             guard let date = fileDate(pad.path) else { return false }
             return date > (knownFileDates[pad.path] ?? .distantPast)
         }
-        guard changed, let loaded = try? store.load() else { return }
-        apply(loaded)
-        rememberFileDates()
     }
 
     private func apply(_ document: ScratchpadDocument, focus: Bool = false) {
@@ -321,6 +370,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// the note and its tab as they were and says why.
     func renamePad(_ id: UUID, to name: String) {
         guard let document else { return }
+        let oldPath = document.pads.first { $0.id == id }?.path
         guard let next = store.renameNote(id, to: name, in: document) else {
             if !ScratchpadSupport.sanitizedPadName(name).isEmpty {
                 QuickToolHUD.show(
@@ -329,7 +379,45 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             }
             return
         }
+        // A starred note keeps its star, and its place, under its new name.
+        if let oldPath, let newPath = next.pads.first(where: { $0.id == id })?.path {
+            setFavorites(ScratchpadFavorites.renaming(oldPath, to: newPath, in: favorites))
+        }
         apply(next, focus: id == selectedPadID)
+    }
+
+    // MARK: - Favorites
+
+    /// The note on screen, by its place in the vault.
+    var selectedPadPath: String? { pads.first(where: { $0.id == selectedPadID })?.path }
+
+    func isFavorite(_ path: String?) -> Bool { path.map(favorites.contains) ?? false }
+
+    /// Stars the note, or takes its star away.
+    func toggleFavorite(_ path: String?) {
+        guard let path else { return }
+        setFavorites(ScratchpadFavorites.toggling(path, in: favorites))
+    }
+
+    /// Command and a number: the favorite at that place, its tab if it is
+    /// open and the note opened as one if it is not.
+    func openFavorite(at place: Int) {
+        guard let path = ScratchpadFavorites.path(at: place, in: favorites) else { return }
+        openFavorite(path)
+    }
+
+    func openFavorite(_ path: String) {
+        if let open = pads.first(where: { $0.path == path }) {
+            selectPad(open.id)
+        } else {
+            openVaultNote(path)
+        }
+    }
+
+    private func setFavorites(_ next: [String]) {
+        guard next != favorites else { return }
+        favorites = next
+        UserDefaults.standard.set(next, forKey: DefaultsKey.scratchpadFavoriteNotes)
     }
 
     /// Closing a tab only stops showing the note; the file stays in the vault.
@@ -361,6 +449,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         hasLoaded = false
         document = nil
         store = ScratchpadStore(vaultURL: vaultURL, defaults: .standard)
+        storeGeneration += 1
+        // Restored settings may name another vault and other favorites.
+        vaultSource = nil
+        favorites = UserDefaults.standard.stringArray(forKey: DefaultsKey.scratchpadFavoriteNotes) ?? []
     }
 
     // MARK: - Vault
@@ -416,6 +508,16 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     private func refreshVault() {
+        let defaults = UserDefaults.standard
+        let source = (bookmark: defaults.data(forKey: DefaultsKey.scratchpadVaultBookmark),
+                      path: defaults.string(forKey: DefaultsKey.scratchpadVaultPath))
+        // Nothing chosen differently and the folder still there: the vault
+        // resolved last time is still the vault.
+        if let vaultSource, vaultSource.bookmark == source.bookmark, vaultSource.path == source.path,
+           vaultURL.map({ FileManager.default.fileExists(atPath: $0.path) }) ?? true {
+            return
+        }
+        vaultSource = source
         let resolved = ScratchpadVaultSupport.resolvedVaultURL(defaults: .standard)
         guard resolved?.standardizedFileURL.path != vaultURL?.standardizedFileURL.path else {
             vaultPath = resolved?.path
@@ -429,6 +531,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             scopedVaultURL = resolved
         }
         store = ScratchpadStore(vaultURL: resolved, defaults: .standard)
+        storeGeneration += 1
         hasLoaded = false
         document = nil
         pads = []

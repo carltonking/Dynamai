@@ -520,6 +520,41 @@ enum InstinctMessagesSupport {
         }
     }
 
+    /// A message's words with the links that get a card taken out. Instinct
+    /// sends a link on its own, and the page showed it twice: once as plain
+    /// text that could not be clicked and once as the card that could. Only
+    /// the card stays; words around a link keep their bubble.
+    static func wordsBesideLinks(_ text: String) -> String {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return text }
+        let ns = text as NSString
+        var kept = ""
+        var cursor = 0
+        for match in detector.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard let scheme = match.url?.scheme?.lowercased(), scheme == "http" || scheme == "https" else { continue }
+            kept += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            cursor = NSMaxRange(match.range)
+        }
+        guard cursor > 0 else { return text }
+        kept += ns.substring(from: cursor)
+        // The space a link left between two words is one space, and a line
+        // it emptied goes with it.
+        let lines = kept.components(separatedBy: "\n").map { line in
+            line.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+        }
+        return lines.filter { !$0.isEmpty }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A message this much older than the moment it reached the island is
+    /// catching up, not arriving: the Mac was asleep or off, and Messages is
+    /// syncing what came in meanwhile. It joins the thread and marks the
+    /// agent unread, but is not announced or read aloud, so waking the Mac
+    /// does not set off one notice per message missed.
+    static let catchUpAge: TimeInterval = 120
+
+    static func isCatchingUp(sent: Date, now: Date) -> Bool {
+        sent.timeIntervalSince1970 > 0 && now.timeIntervalSince(sent) > catchUpAge
+    }
+
     // MARK: Commands
 
     static func chatsArguments() -> [String] {

@@ -3999,6 +3999,36 @@ enum NotchTests {
         suite.expect(NotchCalendarSupport.upcoming(entries, now: date(2026, 3, 8, 12)).map(\.id)
                == ["all", "overnight"],
                "upcoming mode still hides completed appointments after adding month history")
+        // The day's hours: timed events placed at their minutes, overlapping
+        // ones side by side, all-day ones left to the row above. A plain day,
+        // away from the clock change the fixtures above sit on.
+        let wholeDay = NotchCalendarEvent(id: "all", title: "Holiday", calendar: "Personal",
+            start: date(2026, 3, 18), end: date(2026, 3, 19), allDay: true, location: "")
+        let standup = NotchCalendarEvent(id: "standup", title: "Standup", calendar: "Work",
+            start: date(2026, 3, 18, 9), end: date(2026, 3, 18, 9).addingTimeInterval(30 * 60), allDay: false, location: "")
+        let review = NotchCalendarEvent(id: "review", title: "Review", calendar: "Work",
+            start: date(2026, 3, 18, 9).addingTimeInterval(15 * 60), end: date(2026, 3, 18, 11), allDay: false, location: "")
+        let lunch = NotchCalendarEvent(id: "lunch", title: "Lunch", calendar: "Personal",
+            start: date(2026, 3, 18, 12), end: date(2026, 3, 18, 12).addingTimeInterval(5 * 60), allDay: false, location: "")
+        let lateShow = NotchCalendarEvent(id: "late", title: "Late show", calendar: "Personal",
+            start: date(2026, 3, 18, 23), end: date(2026, 3, 19, 2), allDay: false, location: "")
+        let slots = NotchCalendarSupport.timeline([wholeDay, standup, review, lunch, lateShow], on: date(2026, 3, 18),
+                                                  calendar: calendar)
+        let slot = { (id: String) in slots.first { $0.event.id == id } }
+        suite.expect(slot("all") == nil && slots.count == 4,
+                     "the timeline holds the day's timed events and leaves all-day ones to their row")
+        suite.expect(slot("standup")?.startMinute == 540 && slot("standup")?.endMinute == 570
+                     && slot("standup")?.column == 0 && slot("review")?.column == 1
+                     && slot("standup")?.columns == 2 && slot("review")?.columns == 2,
+                     "overlapping events sit side by side, sharing the width")
+        suite.expect(slot("lunch")?.columns == 1 && slot("lunch")?.column == 0
+                     && slot("lunch").map { $0.endMinute - $0.startMinute } == NotchCalendarSupport.timelineMinimumMinutes,
+                     "an event clear of the others takes the whole width, and a short one stays tall enough to read")
+        suite.expect(slot("late")?.startMinute == 23 * 60 && slot("late")?.endMinute == 24 * 60,
+                     "an event running past midnight is drawn to the end of the day")
+        suite.expect(NotchCalendarSupport.timeline([lateShow], on: date(2026, 3, 19), calendar: calendar)
+                        .first.map { $0.startMinute == 0 && $0.endMinute == 120 } == true,
+                     "the next day shows the same event from midnight to its end")
         func link(_ event: NotchCalendarEvent, identifier: String, recurring: Bool) -> String? {
             var event = event
             event.calendarItemIdentifier = identifier

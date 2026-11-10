@@ -17,7 +17,6 @@ struct NotchScratchpadView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchBand) private var band
     @State private var loadFailed = false
-    @State private var copied = false
     @State private var hoveredPadID: UUID?
     @State private var editor = EditorHandle()
     @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
@@ -109,7 +108,10 @@ struct NotchScratchpadView: View {
         .notchBand(leading: {
             if !loadFailed { padControls }
         }, trailing: {
-            if !loadFailed { noteActions }
+            // The starred notes share the row with the note menu; Command
+            // and a number open them. Formatting, preview and copy keep
+            // their keys and the menu, not buttons here.
+            if !loadFailed { favoritesRow }
         })
         .onAppear { loadFailed = !pad.loadForEmbedding() }
         // A vault chosen in Settings while this page is up loads its notes
@@ -147,12 +149,6 @@ struct NotchScratchpadView: View {
         }
         .onChange(of: service.scratchpadFindSerial) { _, _ in
             pad.performFind(service.scratchpadFindAction, in: editor.view)
-        }
-        .task(id: copied) {
-            guard copied else { return }
-            try? await Task.sleep(for: .seconds(1.6))
-            guard !Task.isCancelled else { return }
-            copied = false
         }
     }
 
@@ -211,23 +207,51 @@ struct NotchScratchpadView: View {
         }
     }
 
-    private var noteActions: some View {
-        HStack(spacing: 6) {
-            NotchIconButton(symbol: "textformat",
-                            title: text.formatMarks,
-                            selected: pad.marksExpanded) {
-                withAnimation(.easeOut(duration: 0.15)) { pad.toggleMarks() }
+    /// The starred notes as chips, the one on screen lit, then the star that
+    /// adds or removes the note on screen. Each chip's help names its key.
+    private var favoritesRow: some View {
+        let current = pad.selectedPadPath
+        let starred = pad.isFavorite(current)
+        return HStack(spacing: 4) {
+            if !pad.favorites.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 4) {
+                        ForEach(Array(pad.favorites.enumerated()), id: \.element) { index, path in
+                            favoriteChip(path, place: index + 1, selected: path == current)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .disabled(pad.isPreviewing)
-            NotchIconButton(symbol: pad.isPreviewing ? "pencil" : "eye",
-                            title: pad.isPreviewing ? text.editText : text.previewFormatting,
-                            selected: pad.isPreviewing, action: pad.togglePreview)
-                .disabled(pad.text.isEmpty)
-            NotchIconButton(symbol: copied ? "checkmark" : "doc.on.doc", title: copied ? text.copied : text.copyAll) {
-                pad.copyAll()
-                copied = true
+            NotchIconButton(symbol: starred ? "star.fill" : "star",
+                            title: starred ? text.removeFavorite : text.addFavorite,
+                            selected: starred) {
+                pad.toggleFavorite(current)
             }
-            .disabled(pad.text.isEmpty)
+            .disabled(current == nil)
+        }
+        .frame(maxWidth: max(28, band.besideCamera ? band.side : band.side / 2), alignment: .trailing)
+    }
+
+    private func favoriteChip(_ path: String, place: Int, selected: Bool) -> some View {
+        let name = ScratchpadFavorites.name(of: path)
+        return Button { pad.openFavorite(path) } label: {
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(selected ? .white : .white.opacity(0.6))
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background(.white.opacity(selected ? 0.14 : 0.05), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
+        .help("\(name)  ⌘\(place)")
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .contextMenu {
+            Button(text.removeFavorite) { pad.toggleFavorite(path) }
         }
     }
 
@@ -251,6 +275,11 @@ struct NotchScratchpadView: View {
             NotchMenuItem(title: text.openNote, symbol: "folder", children: vaultItems()),
             NotchMenuItem(title: text.renamePad, enabled: current != nil) {
                 if let current { presentRename(current) }
+            },
+            NotchMenuItem(title: pad.isFavorite(current?.path) ? text.removeFavorite : text.addFavorite,
+                          symbol: pad.isFavorite(current?.path) ? "star.fill" : "star",
+                          enabled: current != nil) {
+                pad.toggleFavorite(current?.path)
             },
             NotchMenuItem(title: text.closePad, enabled: current != nil && pad.canClosePad) {
                 if let current { requestClose(current) }

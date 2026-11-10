@@ -137,17 +137,24 @@ private struct NotchBatteriesWidget: View {
         let name: String
         let percent: Int
         let charging: Bool
+        /// On external power, charging or not: the bolt shows.
+        let powered: Bool
     }
 
     private var rows: [Row] {
         var rows: [Row] = []
         if let power = monitor.snapshot.power, power.hasBattery, let charge = power.chargePercent {
+            // A Mac held at its charge limit, or full on its adapter, reports
+            // no charge in progress while still plugged in; the bolt follows
+            // the adapter, as the menu bar's battery does.
             rows.append(Row(id: "mac", symbol: "laptopcomputer", name: Self.macName, percent: charge,
-                            charging: power.isCharging))
+                            charging: power.isCharging,
+                            powered: power.isCharging || power.externalConnected))
         }
         rows += PeripheralBatterySupport.sorted(monitor.snapshot.peripheralBatteries).map { device in
             Row(id: device.id, symbol: NotchAccessorySupport.symbol(for: device.kind, name: device.name),
-                name: device.name, percent: device.percent, charging: device.isCharging)
+                name: device.name, percent: device.percent, charging: device.isCharging,
+                powered: device.isCharging)
         }
         return rows
     }
@@ -204,7 +211,7 @@ private struct NotchBatteriesWidget: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            NotchBatteryGlyph(percent: row.percent, charging: row.charging)
+            NotchBatteryGlyph(percent: row.percent, charging: row.charging, powered: row.powered)
         }
         .padding(.horizontal, 14)
         .accessibilityElement(children: .ignore)
@@ -213,26 +220,34 @@ private struct NotchBatteriesWidget: View {
 }
 
 /// A battery drawn to its level, white, green while charging and red when
-/// low, as the system draws it.
+/// low, as the system draws it, with a bolt while it is on power.
 private struct NotchBatteryGlyph: View {
     let percent: Int
     let charging: Bool
+    let powered: Bool
 
     var body: some View {
         let fill: Color = charging ? .green : percent <= 20 ? .red : .white
+        let fillWidth = max(2, 19 * CGFloat(min(100, max(0, percent))) / 100)
         HStack(spacing: 1) {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .strokeBorder(.white.opacity(0.45), lineWidth: 1)
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                     .fill(fill)
-                    .frame(width: max(2, 19 * CGFloat(min(100, max(0, percent))) / 100))
+                    .frame(width: fillWidth)
                     .padding(2)
-                if charging {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity)
+                if powered {
+                    // White over the empty part and black over the level, so
+                    // the bolt reads at any charge: a black bolt alone sat on
+                    // the dark empty half of a low battery and vanished.
+                    ZStack {
+                        bolt.foregroundStyle(.white)
+                        bolt.foregroundStyle(.black)
+                            .mask(alignment: .leading) {
+                                Rectangle().frame(width: fillWidth).padding(.leading, 2)
+                            }
+                    }
                 }
             }
             .frame(width: 25, height: 12)
@@ -241,6 +256,12 @@ private struct NotchBatteryGlyph: View {
                 .frame(width: 1.5, height: 4)
         }
         .accessibilityHidden(true)
+    }
+
+    private var bolt: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: 7, weight: .bold))
+            .frame(width: 25, height: 12)
     }
 }
 
