@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/readme/icon.png" width="128" alt="The Dynamai icon: six linked squares on black">
+</p>
+
 <h1 align="center">Dynamai</h1>
 
 <p align="center">
@@ -20,10 +24,7 @@
 Dynamai is a native macOS app that lives in your menu bar and around your camera notch. It turns the notch into a Dynamic Island for music, calendars, notes, timers and controls. It puts your AI agents in one place, whether they run on this Mac or answer you over iMessage. And it replaces the utilities Mac users usually buy one by one, with no account, no telemetry and no subscription.
 
 <p align="center">
-  <img src="docs/assets/readme/panel-mixer.png" width="196" alt="Volume mixer with per app sliders, one app boosted past 100 percent">
-  <img src="docs/assets/readme/panel-system.png" width="196" alt="System tab with temperatures, usage graphs and memory pressure">
-  <img src="docs/assets/readme/panel-controls.png" width="196" alt="Window controls with the app switcher and Dock features">
-  <img src="docs/assets/readme/panel-utilities.png" width="196" alt="Utilities with cleaner, Homebrew, media tools and clipboard">
+  <img src="docs/assets/readme/island-home.png" width="720" alt="The Dynamic Island open on its home page: now playing, the next event and system stats as widgets">
 </p>
 
 Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. Everything is local, and everything can be switched off.
@@ -34,6 +35,15 @@ Per app volume, a real system monitor, a better app switcher, window snapping, D
 - **One window for every agent.** Talk to Hermes running on this Mac, Siri on Apple's on-device model, Meta's Muse, and iMessage agents such as Instinct, Poke and Brea, side by side. Replies arrive like messages, with timestamps, link previews, tapbacks, inline replies and an unread dot.
 - **Your Obsidian notes, in the island.** Edit any note in your vault with Obsidian-style live formatting, math, tables and embeds, and jump between starred notes with ⌘1 to ⌘9.
 - **A calendar you can read at a glance.** Week strip, month grid, agenda and a scrolling day timeline, with countdowns to your next event.
+
+<p align="center">
+  <img src="docs/assets/readme/island-agents.png" width="720" alt="The agent window: a sidebar of agents, a conversation with timestamps, a link preview card and the message field">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/island-notes.png" width="49%" alt="An Obsidian note in the island with starred notes on the top row">
+  <img src="docs/assets/readme/island-calendar.png" width="49%" alt="The calendar's day timeline with overlapping events side by side and a line at the current time">
+</p>
 
 ## Install only what you use
 
@@ -69,14 +79,6 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Fixed Space order.** Keep Spaces in the order you set instead of rearranging them by recent use. Turning it off restores your previous setting.
 - **Quit on close.** Quit selected apps when their last window closes.
 - **Quit and close protection.** Prevent accidental ⌘Q or ⌘W with a hold, double press or extra modifier, per app.
-
-<p align="center">
-  <img src="docs/assets/readme/quit-protection-hold.png" width="300" alt="The hold-to-confirm prompt showing progress below the Command-Q quit shortcut hint">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/window-switcher.gif" width="540" alt="The window switcher showing live thumbnails of open windows">
-</p>
 
 ### Keyboard and mouse
 

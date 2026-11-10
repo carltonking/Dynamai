@@ -4,8 +4,9 @@
 // Generates all icon assets:
 // - the app iconset and .icns from the exported Default rendition of the
 //   adaptive source (Resources/Brand/AppIcon-Default.png)
-// - the menu bar template glyph and BrandMark from the wordmark master
-//   (Resources/Brand/logo.png)
+// - BrandMark from the mark master (Resources/Brand/logo.png), and the menu
+//   bar template glyph from its heavier cut (Resources/Brand/logo-menubar.png),
+//   whose lines stay visible at 15 points where the master's would vanish
 // AppIcon-Default.png is a hand-exported twin of Resources/Brand/AppIcon.icon;
 // re-export it whenever the Icon Composer project changes. The build cannot read
 // .icon bundles directly: actool exists only inside full Xcode 26, and the
@@ -59,12 +60,26 @@ func contentBounds(of rep: NSBitmapImageRep) -> CGRect {
     return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
 }
 
-let bounds = contentBounds(of: logoRep)
-// NSImage draws bottom-up while colorAt() is top-down — flip Y for drawing.
-let sourceRect = CGRect(x: bounds.minX,
-                        y: CGFloat(logoRep.pixelsHigh) - bounds.maxY,
-                        width: bounds.width,
-                        height: bounds.height)
+/// The visible part of a master, in NSImage's bottom-up drawing space.
+func trimmedRect(of rep: NSBitmapImageRep) -> CGRect {
+    let bounds = contentBounds(of: rep)
+    // NSImage draws bottom-up while colorAt() is top-down — flip Y for drawing.
+    return CGRect(x: bounds.minX, y: CGFloat(rep.pixelsHigh) - bounds.maxY,
+                  width: bounds.width, height: bounds.height)
+}
+let sourceRect = trimmedRect(of: logoRep)
+
+let menuBarLogoPath = projectDir.appendingPathComponent("Resources/Brand/logo-menubar.png").path
+let menuBarLogo: NSImage
+let menuBarSourceRect: CGRect
+if let heavy = NSImage(contentsOfFile: menuBarLogoPath), let tiff = heavy.tiffRepresentation,
+   let rep = NSBitmapImageRep(data: tiff) {
+    menuBarLogo = heavy
+    menuBarSourceRect = trimmedRect(of: rep)
+} else {
+    menuBarLogo = logo
+    menuBarSourceRect = sourceRect
+}
 
 func bitmapCanvas(_ px: Int, _ py: Int) -> NSBitmapImageRep? {
     NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: py,
@@ -74,14 +89,14 @@ func bitmapCanvas(_ px: Int, _ py: Int) -> NSBitmapImageRep? {
 }
 
 /// Draws the trimmed mark fitted into `target`, preserving aspect ratio.
-func drawMark(into target: CGRect) {
-    let scale = min(target.width / sourceRect.width, target.height / sourceRect.height)
-    let size = CGSize(width: sourceRect.width * scale, height: sourceRect.height * scale)
+func drawMark(into target: CGRect, image: NSImage = logo, source: CGRect = sourceRect) {
+    let scale = min(target.width / source.width, target.height / source.height)
+    let size = CGSize(width: source.width * scale, height: source.height * scale)
     let rect = CGRect(x: target.midX - size.width / 2,
                       y: target.midY - size.height / 2,
                       width: size.width, height: size.height)
-    logo.draw(in: rect, from: sourceRect, operation: .sourceOver, fraction: 1,
-              respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high.rawValue])
+    image.draw(in: rect, from: source, operation: .sourceOver, fraction: 1,
+               respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high.rawValue])
 }
 
 // MARK: - App icon
@@ -114,14 +129,11 @@ func renderAppIcon(px: Int) -> Data? {
 
 // MARK: - Menu bar glyph (template)
 
-// The mark is ~1.97:1, so fitting it into a fixed box made the width the
-// limiting side and left the height unused, rendering it far shorter than the
-// menu bar icons around it. Size from the height and let the width follow.
-let menuBarGlyphHeight: CGFloat = 12.5
-// Centered geometrically the mark reads high, since the thin ring tails carry
-// the bounding box below the planet body. Drop it onto the same visual floor
-// as its neighbours.
-let menuBarGlyphDrop: CGFloat = 1
+// Sized from the height and let the width follow. The mark is about as wide
+// as it is tall, so it takes the full height menu bar symbols use.
+let menuBarGlyphHeight: CGFloat = 15
+// Symmetric top to bottom, so it sits centred.
+let menuBarGlyphDrop: CGFloat = 0
 // Taller than the mark needs: the same canvas holds the compact Keep Awake
 // symbols. Keep in sync with BlackHoleGlyph.pointSize in
 // Sources/Vorssaint/App/StatusItemController.swift; `--selftest` enforces it.
@@ -135,11 +147,12 @@ func renderMenuBarIcon(scale: Int) -> Data? {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
     // Height-limited target spanning the full canvas width: drawMark keeps the
-    // aspect ratio and centers, landing the mark at 24.6×12.5 pt. Coordinates
+    // aspect ratio and centers, landing the mark at about 14×15 pt. Coordinates
     // are bottom-up, so dropping it lowers y.
     let ink = menuBarGlyphHeight * CGFloat(scale)
     let y = (CGFloat(height) - ink) / 2 - menuBarGlyphDrop * CGFloat(scale)
-    drawMark(into: CGRect(x: 0, y: y, width: CGFloat(width), height: ink))
+    drawMark(into: CGRect(x: 0, y: y, width: CGFloat(width), height: ink),
+             image: menuBarLogo, source: menuBarSourceRect)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
 }

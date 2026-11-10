@@ -239,8 +239,12 @@ func appDelegate() -> AppDelegate? {
 /// The official mark (Resources/Brand/logo.png, trimmed at build time),
 /// tintable for light or dark surfaces.
 struct BrandMark: View {
+    /// The width of the room the mark is given. The mark is about square, and
+    /// the places that show it were laid out for a wide wordmark, so it fits
+    /// a box this wide and half as tall rather than growing twice as tall.
     var width: CGFloat
     var tint: Color = .white
+    static let boxAspect: CGFloat = 0.5
 
     private static let mark: NSImage? = {
         guard let url = Bundle.main.url(forResource: "BrandMark", withExtension: "png") else { return nil }
@@ -256,7 +260,7 @@ struct BrandMark: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(tint)
-                .frame(width: width)
+                .frame(width: width, height: width * Self.boxAspect)
         } else {
             Image(systemName: "circle.fill")
                 .resizable()
