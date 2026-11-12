@@ -214,6 +214,10 @@ struct MetricsTests {
                 DockPreviewFrameRestorationTests.run(suite)
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
+            ("menu-bar-hider", {
+                MenuBarHiderTests.run(suite)
+                MenuBarWeatherTests.run(suite)
+            }),
             ("switcher", {
                 SwitcherScrollContract.run(suite)
                 SwitcherActivationTests.run(suite)

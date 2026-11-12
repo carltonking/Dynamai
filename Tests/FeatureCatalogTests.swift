@@ -482,7 +482,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 81, "feature catalog has 81 features")
+        suite.expect(AppFeature.allCases.count == 83, "feature catalog has 83 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -495,7 +495,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchHermesChat", "notchInstinctChat", "notchSiriChat", "notchMuseChat", "notchMascot",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "menuBarHider", "menuBarWeather", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchHermesChat", "notchInstinctChat", "notchSiriChat", "notchMuseChat", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -2143,7 +2143,14 @@ enum FeatureCatalogTests {
         }, "every feature destination is either always visible or gated by that feature")
         suite.expect(AppFeature.allCases.allSatisfy { $0.settingsDestination.hasValidSectionAnchor },
                "every feature anchor belongs to its destination page")
-        suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
+        // The menu bar hider and weather share the Menu bar card; every other
+        // feature owns its anchor.
+        let menuBarCard: Set<AppFeature> = [.menuBarHider, .menuBarWeather]
+        suite.expect(menuBarCard.allSatisfy { $0.settingsDestination
+                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration) },
+               "the menu bar hider's and weather's switches sit in the Menu bar card")
+        suite.expect(Set(AppFeature.allCases.filter { !menuBarCard.contains($0) }
+                    .compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
                     .panelConfiguration, .keyboardBrightnessShortcuts,
                 ])

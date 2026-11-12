@@ -181,6 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
+                    .menuBarHider,
                 ])
             }
             .store(in: &cancellables)

@@ -408,6 +408,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MonitorLayoutStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
+        Sources/Vorssaint/Core/MenuBarHiderStrings.swift
+        Sources/Vorssaint/Core/MenuBarWeatherStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
         Sources/Vorssaint/Core/FanControlStrings.swift
         Sources/Vorssaint/Core/ConnectedDevicesStrings.swift
@@ -470,6 +472,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift
+        Sources/Vorssaint/Services/MenuBarHider/MenuBarHiderSupport.swift
+        Sources/Vorssaint/Services/MenuBarWeather/MenuBarWeatherSupport.swift
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift
         Sources/Vorssaint/UI/MenuPanel/MixerAppDragSource.swift
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift

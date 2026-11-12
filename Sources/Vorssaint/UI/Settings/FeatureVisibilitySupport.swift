@@ -360,6 +360,10 @@ extension AppFeature {
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .killProcess: return FeatureSettingsDestination(.killProcess)
         case .portManager: return FeatureSettingsDestination(.portManager)
+        // Lives in the Menu bar card beside the icon choice, not in a row of
+        // its own: General's other anchors are filed under Sound.
+        case .menuBarHider, .menuBarWeather:
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
         case .screenshot:

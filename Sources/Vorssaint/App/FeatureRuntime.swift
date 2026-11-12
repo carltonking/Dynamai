@@ -316,6 +316,8 @@ final class FeatureRuntime: ObservableObject {
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
         .bluetoothSleep: { BluetoothSleepService.shared.syncWithPreferences() },
+        .menuBarHider: { MenuBarHiderService.shared.syncWithPreferences() },
+        .menuBarWeather: { MenuBarWeatherService.shared.syncWithPreferences() },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: {
             ScreenCaptureService.shared.syncWithPreferences()
@@ -456,6 +458,10 @@ extension AppFeature {
             return SiriAssistantAvailability.deviceCanRun ? nil
                 : String(format: FeatureStrings.notchSiriChat(L10n.shared.language).unavailableFormat,
                          SiriAssistantAvailability.unavailableReason() ?? "")
+        // The restriction it hides with only exists from macOS 27.
+        case .menuBarHider:
+            return MenuBarHiderService.isSupported
+                ? nil : FeatureStrings.menuBarHider(L10n.shared.language).unsupported
         default:
             return nil
         }

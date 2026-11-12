@@ -251,6 +251,14 @@ enum DefaultsKey {
     // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
     // while asleep still gets it back on the next launch.
     static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
+    static let menuBarHiderEnabled = "menuBarHiderEnabled"
+    static let menuBarWeatherEnabled = "menuBarWeatherEnabled"
+    static let menuBarWeatherCity = "menuBarWeatherCity"  // "" = the time zone's city
+    // Which private number hides which macOS menu bar item, learned on this
+    // Mac for one macOS build (the build is stored beside them).
+    static let menuBarHiderSystemItemNumbers = "menuBarHiderSystemItemNumbers"
+    static let menuBarHiderUncontrollableItems = "menuBarHiderUncontrollableItems"
+    static let menuBarHiderSystemItemBuild = "menuBarHiderSystemItemBuild"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let musicBlockPlayReplacement = "musicBlockPlayReplacement" // play after Play/Pause opens the replacement
@@ -1421,6 +1429,12 @@ enum Defaults {
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,
+        DefaultsKey.menuBarHiderEnabled: false,
+        DefaultsKey.menuBarWeatherEnabled: false,
+        DefaultsKey.menuBarWeatherCity: "",
+        DefaultsKey.menuBarHiderSystemItemNumbers: [String: Int](),
+        DefaultsKey.menuBarHiderUncontrollableItems: [String](),
+        DefaultsKey.menuBarHiderSystemItemBuild: "",
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.musicBlockPlayReplacement: true,

@@ -18,6 +18,16 @@ struct GeneralToolSettings: View {
                 switch anchor {
                 case .panelConfiguration:
                     SettingsCard(title: l10n.s.menuBarSection) {
+                        // First in the card: below the panel editor it sat
+                        // out of sight.
+                        if AppFeature.menuBarHider.isAvailable {
+                            MenuBarHiderSettings()
+                            Divider()
+                        }
+                        if AppFeature.menuBarWeather.isAvailable {
+                            MenuBarWeatherSettings()
+                            Divider()
+                        }
                         Text(text.panelIntro)
                             .font(.callout)
                             .foregroundStyle(.secondary)
@@ -221,6 +231,86 @@ private struct MenuBarIconNameField: View {
                 BlackHoleGlyph.customMark(named: $0) != nil
             }
             if kept != savedName { savedName = kept }
+        }
+    }
+}
+
+/// The arrow that hides menu bar icons. Which icons hide is chosen in the
+/// menu bar itself, by ⌘-dragging them past the arrow, so this only switches
+/// it on and explains the drag.
+private struct MenuBarHiderSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.menuBarHiderEnabled) private var enabled = false
+
+    private var strings: MenuBarHiderStrings { FeatureStrings.menuBarHider(l10n.language) }
+
+    var body: some View {
+        SettingsRow(symbol: AppFeature.menuBarHider.symbolName, title: strings.enable,
+                    caption: strings.enableCaption) {
+            Toggle(strings.enable, isOn: $enabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(!MenuBarHiderService.isSupported)
+                .onChange(of: enabled) { _, _ in
+                    MenuBarHiderService.shared.syncWithPreferences()
+                }
+        }
+        if !MenuBarHiderService.isSupported {
+            Text(strings.unsupported)
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+        } else if enabled {
+            if !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Text(strings.limitsCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+        }
+    }
+}
+
+/// Fahrenheit and Celsius side by side in the menu bar, for one city.
+private struct MenuBarWeatherSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var weather = MenuBarWeatherService.shared
+    @AppStorage(DefaultsKey.menuBarWeatherEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.menuBarWeatherCity) private var city = ""
+
+    private var strings: MenuBarWeatherStrings { FeatureStrings.menuBarWeather(l10n.language) }
+
+    var body: some View {
+        SettingsRow(symbol: AppFeature.menuBarWeather.symbolName, title: strings.enable,
+                    caption: strings.enableCaption) {
+            Toggle(strings.enable, isOn: $enabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .onChange(of: enabled) { _, _ in
+                    MenuBarWeatherService.shared.syncWithPreferences()
+                }
+        }
+        if enabled {
+            HStack(spacing: 8) {
+                Text(strings.cityLabel)
+                Spacer()
+                // Committed on Return, so each keystroke is not a request.
+                TextField(MenuBarWeatherSupport.city(typed: "", timeZone: .current), text: $city)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 220)
+                    .onSubmit { MenuBarWeatherService.shared.cityChanged() }
+            }
+            .padding(.leading, settingsRowTextInset)
+            Text(weather.lastRefreshFailed ? strings.unavailable : strings.cityCaption)
+                .font(.caption)
+                .foregroundStyle(weather.lastRefreshFailed ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
         }
     }
 }

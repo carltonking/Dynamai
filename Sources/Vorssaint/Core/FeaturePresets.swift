@@ -157,8 +157,11 @@ extension AppFeature {
              .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
-             .diskImageInstaller, .killProcess, .portManager:
+             .diskImageInstaller, .killProcess, .portManager, .menuBarHider:
             return .idle
+        // A request every 15 minutes, and nothing in between.
+        case .menuBarWeather:
+            return .periodic
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.
             return AppUpdatesSupport.CheckFrequency.sanitized(
