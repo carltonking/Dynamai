@@ -10,7 +10,9 @@ struct NotchView: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
+    @ObservedObject private var keepAwake = KeepAwakeManager.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.keepAwakeIslandBadge) private var keepAwakeBadge = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -370,13 +372,17 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
+                    HStack(spacing: 6) {
+                        items.trailing; trailingSections(band); updateControl(band); keepAwakeMark; pinMark
+                        levelReadouts
+                    }
                     HStack(spacing: 6) {
                         items.trailing; trailingSections(band)
-                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
+                        NotchUpdateControl(action: service.showUpdate, compact: true); keepAwakeMark; pinMark
+                        levelReadouts
                     }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); keepAwakeMark; pinMark; levelReadouts }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); keepAwakeMark; levelReadouts }
                 }
             }
         }
@@ -404,6 +410,32 @@ struct NotchView: View {
     }
 
     /// A kept-open island says so, and one click lets it go.
+    /// The home page's top right corner: volume and brightness as fixed
+    /// percentages, in place of a reading that slides over the row.
+    @ViewBuilder private var levelReadouts: some View {
+        if service.selected == .controls, !showsDetail, !service.showingSections {
+            NotchLevelReadouts()
+        }
+    }
+
+    /// The opened island covers the Keep Awake badge beside it, so the same
+    /// white bolt moves into the top row. Clicking it ends Keep Awake.
+    @ViewBuilder private var keepAwakeMark: some View {
+        if keepAwakeBadge && keepAwake.isActive && AppFeature.keepAwake.isAvailable {
+            let label = FeatureStrings.keepAwakeIslandBadge(l10n.language).accessibilityLabel
+            Button { keepAwake.toggle() } label: {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+            .help(label)
+            .accessibilityLabel(label)
+        }
+    }
+
     @ViewBuilder private var pinMark: some View {
         if service.pinned {
             NotchIconButton(symbol: "pin.fill", title: text.unpin, selected: true) { service.pinned = false }
@@ -510,7 +542,8 @@ struct NotchView: View {
 
     private var headerFeedback: NotchNotice? {
         guard let notice = service.notice, notice.level != nil,
-              [.volume, .brightness, .keyboardLight].contains(notice.event) else { return nil }
+              [.volume, .brightness, .keyboardLight].contains(notice.event),
+              NotchSupport.readsLevelOverOpenIsland(notice.event) else { return nil }
         // The home page shows its levels in the top row, or just below it,
         // where they already move with the key; a reading over one would only
         // repeat it. A level key's event shares its name with the level it moves.
@@ -937,5 +970,56 @@ struct NotchActivityPicker: View {
                 .accessibilityIdentifier("notch.activity.\(activity.rawValue)")
             }
         }
+    }
+}
+
+/// Volume and brightness as an icon and a percentage each. The numbers
+/// change in place, with no animation, as the keys or sliders move them.
+private struct NotchLevelReadouts: View {
+    @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    private var volume: Double? {
+        guard AppFeature.mixer.isAvailable else { return nil }
+        return mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 }
+    }
+
+    /// The display the island's brightness level follows: the one the keys
+    /// last moved, else the built-in panel.
+    private var display: BrightnessDisplay? {
+        guard AppFeature.brightness.isAvailable else { return nil }
+        let displays = brightness.displays.filter { $0.isActive && $0.method != nil }
+        return displays.first(where: { $0.id == brightness.focusedDisplayID })
+            ?? displays.first(where: \.isBuiltIn) ?? displays.first
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let percent = NotchSupport.levelPercent(volume) {
+                readout(symbol: mixer.systemOutputMuted == true ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                        percent: percent, title: FeatureStrings.notch(l10n.language).volume)
+            }
+            if let display, let percent = NotchSupport.levelPercent(display.brightness) {
+                readout(symbol: "sun.max.fill", percent: percent,
+                        title: FeatureStrings.notch(l10n.language).brightness)
+            }
+        }
+        .transaction { $0.animation = nil }
+    }
+
+    private func readout(symbol: String, percent: String, title: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .medium))
+            Text(verbatim: percent)
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .contentTransition(.identity)
+        }
+        .foregroundStyle(.white)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(percent)
     }
 }

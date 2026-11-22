@@ -3,7 +3,7 @@
 
 import SwiftUI
 
-/// The Muse settings: the switch, whether the Muse app can be read, and the
+/// The Muse settings: the switch, whether Muse's page is signed in, and the
 /// way to fix it when it cannot. The page itself is the shared chat page,
 /// carrying `NotchHermesChatService.muse`.
 struct NotchMuseChatSettingsControls: View {

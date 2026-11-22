@@ -1076,6 +1076,7 @@ extension AppFeature {
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
         case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).pageTitle
         case .menuBarWeather: return FeatureStrings.menuBarWeather(L10n.shared.language).pageTitle
+        case .quickBar: return FeatureStrings.quickBar(L10n.shared.language).pageTitle
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -1172,6 +1173,7 @@ extension AppFeature {
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).hubDescription
         case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).hubDescription
         case .menuBarWeather: return FeatureStrings.menuBarWeather(L10n.shared.language).hubDescription
+        case .quickBar: return FeatureStrings.quickBar(L10n.shared.language).hubDescription
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU

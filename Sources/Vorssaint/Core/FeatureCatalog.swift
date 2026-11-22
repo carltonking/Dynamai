@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager, menuBarHider, menuBarWeather
+         commandBar, screenRecorder, wallpaper, killProcess, portManager, menuBarHider, menuBarWeather, quickBar
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchHermesChat, notchInstinctChat, notchSiriChat,
@@ -116,7 +116,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .menuBarHider, .menuBarWeather:
+             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .menuBarHider, .menuBarWeather, .quickBar:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -208,6 +208,7 @@ extension AppFeature {
         case .portManager: return "network"
         case .menuBarHider: return "menubar.arrow.up.rectangle"
         case .menuBarWeather: return "cloud.sun"
+        case .quickBar: return "text.bubble"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -301,7 +302,7 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
+             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .quickBar,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
             return []
@@ -358,9 +359,8 @@ extension AppFeature {
         // Siri runs on Apple's language model; its calendar and reminders
         // tools ask for those the first time they are used.
         case .notchSiriChat: return []
-        // Muse is read from the Muse app's window and typed into, which
-        // only Accessibility allows.
-        case .notchMuseChat: return [.accessibility]
+        // Muse runs on its own website inside this app: nothing to allow.
+        case .notchMuseChat: return []
         // It only draws, and hears of what happens from the island itself.
         case .notchMascot: return []
         // The bars read the player's own audio output, which macOS gates
@@ -411,6 +411,8 @@ extension AppFeature {
         case .menuBarHider: return [.accessibility]
         // Open-Meteo is reached over the network, which needs no permission.
         case .menuBarWeather: return []
+        // A window of its own and a hotkey: no grant at all.
+        case .quickBar: return []
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
@@ -520,7 +522,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .menuBarHider, .menuBarWeather, .fanControl, .notchMascot, .spacesOrder,
+             .wallpaper, .killProcess, .portManager, .menuBarHider, .menuBarWeather, .quickBar, .fanControl, .notchMascot, .spacesOrder,
              .notchHermesChat, .notchInstinctChat, .notchSiriChat, .notchMuseChat:
             return false
         }

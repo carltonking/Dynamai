@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Combine
+import CoreGraphics
 import Foundation
 
 /// The Agent Client Protocol conversation the island holds with Hermes Agent.
@@ -514,6 +515,31 @@ enum NotchAgentTimestampSupport {
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
         return formatter(template: sameYear ? "EEEMMMd" : "yMMMd", locale: locale, calendar: calendar)
             .string(from: date) + " " + time
+    }
+
+    // MARK: Swipe to see every time
+
+    /// How far the conversation slides left to show each message's time
+    /// beside it, as a left swipe does in Messages on iPhone. Wide enough
+    /// for "12:59 PM" and the gap before it.
+    static let revealWidth: CGFloat = 64
+
+    /// The conversation follows the fingers until the times are out, then
+    /// resists, as a scroll view does past its end. `fingers` is how far they
+    /// travelled left; never negative.
+    static func revealOffset(fingers: CGFloat) -> CGFloat {
+        let travel = max(0, fingers)
+        guard travel > revealWidth else { return travel }
+        let beyond = travel - revealWidth
+        // Rubber band: each point past the edge moves the content less.
+        return revealWidth + beyond * 24 / (beyond + 24)
+    }
+
+    /// The time alone, as it shows beside a message: no day, which the
+    /// centred lines already give. A date that never parsed has none.
+    static func revealedTime(for date: Date, locale: Locale, calendar: Calendar = .current) -> String? {
+        guard date.timeIntervalSince1970 > 0 else { return nil }
+        return formatter(template: "jmm", locale: locale, calendar: calendar).string(from: date)
     }
 
     private static func formatter(template: String, locale: Locale, calendar: Calendar) -> DateFormatter {

@@ -117,6 +117,11 @@ struct NotchHermesChatView: View {
     @State private var swipedMessage: UUID?
     @State private var swipeOffset: CGFloat = 0
     @State private var swipe = NotchMessagesSwipe()
+    /// How far the conversation sits slid left to show the times.
+    @State private var revealOffset: CGFloat = 0
+    /// What the swipe under way does, settled by its first movement.
+    @State private var swipeMode = SwipeMode.none
+    @State private var pointerInTranscript = false
     private var text: NotchHermesChatStrings { chat.strings(l10n.language) }
     private var messaging: NotchAgentMessagingStrings { FeatureStrings.notchAgentMessaging(l10n.language) }
 
@@ -149,6 +154,7 @@ struct NotchHermesChatView: View {
                     chat.answer(approval, choice)
                 }
             }
+            museNotice
             composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -211,6 +217,9 @@ struct NotchHermesChatView: View {
                 .padding(.vertical, 2)
             }
             .scrollIndicators(.hidden)
+            // A left swipe anywhere over the conversation shows the times,
+            // not only over a bubble.
+            .onHover { pointerInTranscript = $0 }
             .onAppear { scroll(proxy, animated: false) }
             // A finished turn is worth a slide; a reply writing itself is
             // not, or the island would animate on every few words.
@@ -317,7 +326,21 @@ struct NotchHermesChatView: View {
         .help(message.date.timeIntervalSince1970 > 0
               ? message.date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened)
                 .locale(l10n.language.formattingLocale())) : "")
-        .offset(x: swiping)
+        .offset(x: swiping - revealOffset)
+        // Swiped left, as in Messages on iPhone, every bubble slides over and
+        // its time comes in from the right edge, level with it.
+        .overlay(alignment: .trailing) {
+            if revealOffset > 0,
+               let time = NotchAgentTimestampSupport.revealedTime(for: message.date,
+                                                                  locale: l10n.language.formattingLocale()) {
+                Text(verbatim: time)
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.45))
+                    .fixedSize()
+                    .offset(x: NotchAgentTimestampSupport.revealWidth - revealOffset)
+                    .accessibilityHidden(true)
+            }
+        }
         // The reply arrow shows from under the bubble as it is swiped right.
         .background(alignment: .leading) {
             Image(systemName: "arrowshape.turn.up.left.fill")
@@ -395,22 +418,54 @@ struct NotchHermesChatView: View {
         typing = true
     }
 
-    /// A two-finger swipe right on a bubble: it follows the fingers, and let
-    /// go far enough it becomes the message the next one replies to.
+    private enum SwipeMode { case none, reply, reveal }
+
+    /// Two-finger swipes, as in Messages on iPhone. Right on a bubble: it
+    /// follows the fingers, and let go far enough it becomes the message the
+    /// next one replies to. Left anywhere over the conversation: everything
+    /// slides over to show when each message was sent, and springs back on
+    /// release. The first movement settles which one a swipe is.
     private func handleSwipe(_ phase: NotchMessagesSwipe.Phase) -> Bool {
         switch phase {
         case .moved(let distance):
-            guard let hovered = hoveredMessage ?? swipedMessage,
-                  chat.messages.contains(where: { $0.id == hovered && side($0.role) != .aside }) else { return false }
-            swipedMessage = hovered
-            swipeOffset = min(NotchMessagesSwipe.limit, max(0, distance))
+            if swipeMode == .none {
+                if distance < 0 {
+                    guard hasConversation, pointerInTranscript || hoveredMessage != nil else { return false }
+                    swipeMode = .reveal
+                } else if distance > 0 {
+                    guard let hovered = hoveredMessage,
+                          chat.messages.contains(where: { $0.id == hovered && side($0.role) != .aside })
+                    else { return false }
+                    swipedMessage = hovered
+                    swipeMode = .reply
+                } else {
+                    return false
+                }
+            }
+            switch swipeMode {
+            case .reveal:
+                revealOffset = NotchAgentTimestampSupport.revealOffset(fingers: -distance)
+            case .reply:
+                swipeOffset = min(NotchMessagesSwipe.limit, max(0, distance))
+            case .none:
+                return false
+            }
             return true
         case .ended:
-            guard let swiped = swipedMessage else { return false }
-            if swipeOffset >= NotchMessagesSwipe.threshold { startReply(to: swiped) }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
-            swipedMessage = nil
-            return true
+            let mode = swipeMode
+            swipeMode = .none
+            switch mode {
+            case .reveal:
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { revealOffset = 0 }
+                return true
+            case .reply:
+                if let swiped = swipedMessage, swipeOffset >= NotchMessagesSwipe.threshold { startReply(to: swiped) }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
+                swipedMessage = nil
+                return true
+            case .none:
+                return false
+            }
         }
     }
 
@@ -446,6 +501,26 @@ struct NotchHermesChatView: View {
     }
 
 
+    /// Muse signed out (or its page not loading) under a conversation already
+    /// on the page: the opening, which carries the same reason and Open Muse,
+    /// is not shown then, so the reason sits above the field instead.
+    @ViewBuilder private var museNotice: some View {
+        if hasConversation, case .failed(.muse(let problem)) = chat.state, problem != .notInstalled {
+            let words = FeatureStrings.notchMuseChat(l10n.language)
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(words.problem(problem))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                NotchPillButton(title: words.openMuse, prominent: true) { chat.openMuseApp() }
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
     // MARK: Opening
 
     /// Before the first message: what the page is for, and the one reason it
@@ -461,9 +536,9 @@ struct NotchHermesChatView: View {
                             Permissions.shared.requestFullDiskAccess()
                         }
                     }
-                    // Muse is reached through its app: the grant it needs,
-                    // or the app itself, is one click away. The page recovers
-                    // on its own once Muse can be read again.
+                    // Muse runs on its website inside this app: its page, to
+                    // sign in, is one click away. The page recovers on its own
+                    // once Muse can be read again.
                     if case .muse(let problem) = failure {
                         let words = FeatureStrings.notchMuseChat(l10n.language)
                         if problem == .needsAccessibility {
@@ -1325,3 +1400,4 @@ struct InstinctMark: Shape {
         return path
     }
 }
+

@@ -235,9 +235,9 @@ private struct MenuBarIconNameField: View {
     }
 }
 
-/// The arrow that hides menu bar icons. Which icons hide is chosen in the
-/// menu bar itself, by ⌘-dragging them past the arrow, so this only switches
-/// it on and explains the drag.
+/// Hidden Bar, built in: the arrow that hides menu bar icons. Which icons
+/// hide is chosen in the menu bar itself, by ⌘-dragging them past the arrow;
+/// everything else Hidden Bar offers is in its own settings window.
 private struct MenuBarHiderSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -251,26 +251,17 @@ private struct MenuBarHiderSettings: View {
             Toggle(strings.enable, isOn: $enabled)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .disabled(!MenuBarHiderService.isSupported)
                 .onChange(of: enabled) { _, _ in
-                    MenuBarHiderService.shared.syncWithPreferences()
+                    HiddenBarFeature.shared.syncWithPreferences()
                 }
         }
-        if !MenuBarHiderService.isSupported {
-            Text(strings.unsupported)
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, settingsRowTextInset)
-        } else if enabled {
+        if enabled {
             if !permissions.accessibility {
                 PermissionRow(kind: .accessibility)
                     .padding(.leading, settingsRowTextInset)
             }
-            Text(strings.limitsCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Button(strings.openSettings) { HiddenBarFeature.shared.showSettings() }
+                .controlSize(.small)
                 .padding(.leading, settingsRowTextInset)
         }
     }

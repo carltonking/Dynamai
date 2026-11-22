@@ -45,6 +45,8 @@ enum DefaultsKey {
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
+    // The Keep Awake symbol beside the Dynamic Island while it is on.
+    static let keepAwakeIslandBadge = "keepAwakeIslandBadge"
     static let showCountdown = "showCountdownInMenuBar"
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
@@ -254,11 +256,9 @@ enum DefaultsKey {
     static let menuBarHiderEnabled = "menuBarHiderEnabled"
     static let menuBarWeatherEnabled = "menuBarWeatherEnabled"
     static let menuBarWeatherCity = "menuBarWeatherCity"  // "" = the time zone's city
-    // Which private number hides which macOS menu bar item, learned on this
-    // Mac for one macOS build (the build is stored beside them).
-    static let menuBarHiderSystemItemNumbers = "menuBarHiderSystemItemNumbers"
-    static let menuBarHiderUncontrollableItems = "menuBarHiderUncontrollableItems"
-    static let menuBarHiderSystemItemBuild = "menuBarHiderSystemItemBuild"
+    static let quickBarShortcutEnabled = "quickBarShortcutEnabled"
+    static let quickBarShortcut = "quickBarShortcut"
+    static let quickBarTextSize = "quickBarTextSize"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let musicBlockPlayReplacement = "musicBlockPlayReplacement" // play after Play/Pause opens the replacement
@@ -965,6 +965,9 @@ enum DefaultsKey {
     static let notchShortcutKeepsOpen = "notchShortcutKeepsOpen"
     static let notchHideInFullscreen = "notchHideInFullscreen"
     static let notchHideUntilHover = "notchHideUntilHover"
+    // No island at rest, on any display: it slides down out of the top edge
+    // for an activity or when opened, and folds back up into nothing.
+    static let notchHideWhenClosed = "notchHideWhenClosed"
     static let notchHiddenShowsActivity = "notchHiddenShowsActivity"
     static let notchCoversMenus = "notchCoversMenus"
     static let notchLowBatteryTint = "notchLowBatteryTint"
@@ -1429,12 +1432,13 @@ enum Defaults {
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,
+        DefaultsKey.keepAwakeIslandBadge: false,
         DefaultsKey.menuBarHiderEnabled: false,
         DefaultsKey.menuBarWeatherEnabled: false,
         DefaultsKey.menuBarWeatherCity: "",
-        DefaultsKey.menuBarHiderSystemItemNumbers: [String: Int](),
-        DefaultsKey.menuBarHiderUncontrollableItems: [String](),
-        DefaultsKey.menuBarHiderSystemItemBuild: "",
+        DefaultsKey.quickBarShortcutEnabled: true,
+        DefaultsKey.quickBarShortcut: GlobalShortcut.quickBarDefault.storageValue,
+        DefaultsKey.quickBarTextSize: QuickBarSupport.defaultTextSize,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.musicBlockPlayReplacement: true,
@@ -1593,6 +1597,7 @@ enum Defaults {
         DefaultsKey.notchShortcutKeepsOpen: false,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
+        DefaultsKey.notchHideWhenClosed: false,
         DefaultsKey.notchHiddenShowsActivity: false,
         DefaultsKey.notchCoversMenus: true,
         DefaultsKey.notchLowBatteryTint: false,

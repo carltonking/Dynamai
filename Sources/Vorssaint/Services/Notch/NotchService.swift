@@ -430,8 +430,8 @@ final class NotchService: ObservableObject {
     }
 
     private var hiddenUntilHover: Bool {
-        !hiddenInFullscreen && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)
+        !hiddenInFullscreen && (UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) || NotchSupport.hidesWhenClosed())
             && !expanded && !peeking && !dragPlaceholder && captureControls == nil
             // Set to show activity, it comes into sight while one runs or a
             // notice shows. Closed beside a simulated cutout with no room
@@ -1486,6 +1486,10 @@ final class NotchService: ObservableObject {
         if captureControls != nil { expandCaptureControls(); return }
         if !running || self.panel == nil { syncWithPreferences() }
         else { refreshModules() }
+        // Following the pointer waits a moment after it crosses to another
+        // display; a shortcut pressed sooner should still open the island on
+        // the display being worked on, not the one the pointer just left.
+        if !expanded { followPointerNow() }
         guard let panel else { return }
         let reopening = reopeningDestination
         let useReopeningSurface = module == nil && !expanded && !appPanel && !sections && metric == nil
@@ -2910,8 +2914,9 @@ final class NotchService: ObservableObject {
                             quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
-                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
-                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
+                                && (UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+                                    && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)
+                                    || NotchSupport.hidesWhenClosed()),
                             usesGlass: !fullscreenCompact && usesGlassSurface,
                             steady: fitsInPlace)
         // The selector lives in a separate full-screen panel. A floating
@@ -3050,6 +3055,13 @@ final class NotchService: ObservableObject {
               windowHost?.isConcealedForMissionControl == false,
               let screen = NSScreen.withMouse, screen.notchDisplayID != displayID else { return }
         move(to: screen)
+    }
+
+    /// `followPointer` without the wait, for an island about to open.
+    private func followPointerNow() {
+        guard followsPointer, let screen = NSScreen.withMouse, screen.notchDisplayID != displayID else { return }
+        pointerFollowWork?.cancel(); pointerFollowWork = nil
+        followPointer()
     }
 
     private func move(to screen: NSScreen) {

@@ -814,24 +814,26 @@ enum NotchCompactTests {
         page.showsDetail = false
         page.controls = [.music, .brightness, .keyboardLight, .volume, .timer]
         let levelsQuiet = reading(.brightness) == nil && reading(.keyboardLight) == nil && reading(.volume) == nil
-        page.controls = [.music, .brightness, .keyboardLight, .timer]
-        let hiddenLevelShows = reading(.volume) != nil
+        // Volume and brightness never cover the open island: the home page
+        // carries their percentages in its corner. The keyboard light keeps
+        // its reading wherever its level is not on the page.
+        page.controls = [.music, .brightness, .volume, .timer]
+        let hiddenLevelShows = reading(.keyboardLight) != nil && reading(.volume) == nil
         page.service.selected = .music
-        let otherPageShows = reading(.brightness) != nil
+        let otherPageShows = reading(.keyboardLight) != nil && reading(.brightness) == nil
         page.service.selected = .controls
         page.service.showingSections = true
-        let galleryShows = reading(.brightness) != nil
+        let galleryShows = reading(.keyboardLight) != nil && reading(.brightness) == nil
         page.service.showingSections = false
         page.showsDetail = true
-        let detailShows = reading(.brightness) != nil
+        let detailShows = reading(.keyboardLight) != nil && reading(.volume) == nil
         page.showsDetail = false
+        page.controls = [.music, .brightness, .keyboardLight, .volume, .timer]
         suite.expect(levelsQuiet && hiddenLevelShows && otherPageShows && galleryShows && detailShows,
-                     "a level key leaves the home page's levels uncovered, since the level it moves is already on the page")
-        // The row's brightness shows the display the keys last moved, so only
-        // the way to set brightness up, with no slider, leaves the reading.
+                     "only the keyboard light raises a reading over the open island; volume and brightness stay in the corner")
         page.brightnessSlider = false
-        suite.expect(reading(.brightness) != nil && reading(.keyboardLight) == nil,
-                     "a brightness key keeps its reading on the home page while its row has no slider")
+        suite.expect(reading(.brightness) == nil && reading(.keyboardLight) == nil,
+                     "a brightness key raises no reading on the home page even while its row has no slider")
         page.brightnessSlider = true
     }
 }

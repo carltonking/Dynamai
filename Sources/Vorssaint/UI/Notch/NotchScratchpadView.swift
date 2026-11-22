@@ -113,7 +113,12 @@ struct NotchScratchpadView: View {
             // their keys and the menu, not buttons here.
             if !loadFailed { favoritesRow }
         })
-        .onAppear { loadFailed = !pad.loadForEmbedding() }
+        // The page opens on the first starred note, whichever tab was last
+        // in front, so the note kept at hand is the one waiting.
+        .onAppear {
+            loadFailed = !pad.loadForEmbedding()
+            if !loadFailed, let first = pad.favorites.first { pad.openFavorite(first) }
+        }
         // A vault chosen in Settings while this page is up loads its notes
         // here, rather than leaving the page on the error until it reopens.
         .onChange(of: pad.vaultPath) { _, _ in loadFailed = !pad.loadForEmbedding() }

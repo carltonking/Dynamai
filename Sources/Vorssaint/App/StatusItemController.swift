@@ -316,11 +316,17 @@ final class StatusItemController {
 
     private var currentKeepAwakeSignal: Bool {
         MenuBarSpacingSupport.keepAwakeSignals(active: KeepAwakeManager.shared.isActive,
-                                               tint: .current, style: .current)
+                                               tint: .current, style: .current,
+                                               islandBadge: Self.keepAwakeIslandBadgeShown)
     }
 
     /// Whether a running Keep Awake session brings back the glyph the
     /// metrics option hides. Held with the mic badge while a panel is open.
+    private static var keepAwakeIslandBadgeShown: Bool {
+        AppFeature.keepAwake.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeIslandBadge)
+    }
+
     private var keepAwakeSignal: Bool {
         heldKeepAwakeSignal ?? currentKeepAwakeSignal
     }
@@ -384,7 +390,9 @@ final class StatusItemController {
                 renderedTitleLength: button.attributedTitle.length,
                 mustShowForSignal: signal || keepAwakeSignal)
         mainItemHiddenByChoice = mainItemHidden
-        let keepAwakeActive = KeepAwakeManager.shared.isActive
+        // The badge beside the Dynamic Island replaces the active glyph, so
+        // the menu bar icon stays as it is while Keep Awake runs.
+        let keepAwakeActive = KeepAwakeManager.shared.isActive && !Self.keepAwakeIslandBadgeShown
 
         // refresh() runs on every monitor tick and lands here; re-rendering
         // the same image every 2 seconds would be wasted composition, so the
@@ -1073,7 +1081,8 @@ enum BlackHoleGlyph {
         return tinted
     }
 
-    private static func color(for tint: KeepAwakeIconTint) -> NSColor? {
+    /// Shared with the Keep Awake badge beside the island, so both match.
+    static func color(for tint: KeepAwakeIconTint) -> NSColor? {
         switch tint {
         case .orange: return .systemOrange
         case .green: return .systemGreen

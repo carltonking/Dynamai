@@ -241,8 +241,11 @@ enum MenuBarSpacingSupport {
     /// Whether a running Keep Awake session needs the glyph that metrics
     /// hide: the tinted or swapped glyph is the session's only mark there.
     /// Untinted, the app's own mark looks the same idle and active.
-    static func keepAwakeSignals(active: Bool, tint: KeepAwakeIconTint, style: KeepAwakeActiveIcon) -> Bool {
-        active && (tint != .none || style != .vorssaint)
+    /// With the badge beside the Dynamic Island on, the badge is the signal,
+    /// so a glyph the user hid stays hidden.
+    static func keepAwakeSignals(active: Bool, tint: KeepAwakeIconTint, style: KeepAwakeActiveIcon,
+                                 islandBadge: Bool = false) -> Bool {
+        active && !islandBadge && (tint != .none || style != .vorssaint)
     }
 
     /// Whether the whole main status item may hide in the separate-items

@@ -196,6 +196,9 @@ struct GlobalShortcut: Equatable, Hashable {
                                                      modifiers: [.control, .option, .command])
     // A two-key combination for a lock that starts mid-wipe; Option-3 is
     // free on the app's other layers (full-screen capture is Control-Option-Command-3).
+    // Shift-Option-Space: Option-Space itself is the Command Bar's, and every
+    // default stays unique. Anyone not using the Command Bar can take it.
+    static let quickBarDefault = GlobalShortcut(keyCode: Int64(kVK_Space), modifiers: [.shift, .option])
     static let cleaningModeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
                                                     modifiers: [.option])
     // V for Vorssaint: the quick launcher's own combination.
@@ -740,6 +743,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case notch
     case agentChat
     case calculator
+    case quickBar
 
     var id: String { storageKey }
 
@@ -765,6 +769,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .cleaningMode: return DefaultsKey.cleaningModeShortcut
+        case .quickBar: return DefaultsKey.quickBarShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
@@ -804,6 +809,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .cleaningMode: return .cleaningModeDefault
+        case .quickBar: return .quickBarDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
@@ -867,6 +873,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).editClipboardImage
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .cleaningMode: return strings.cleaningMenuItem
+        case .quickBar: return FeatureStrings.quickBar(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
@@ -932,6 +939,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .cleaningMode: return [DefaultsKey.cleaningModeShortcutEnabled]
+        case .quickBar: return [DefaultsKey.quickBarShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
@@ -969,6 +977,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return .screenshot
         case .cameraPreview: return .cameraPreview
         case .cleaningMode: return .cleaningMode
+        case .quickBar: return .quickBar
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets

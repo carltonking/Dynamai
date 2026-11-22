@@ -196,6 +196,7 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.keepAwake, [s.keepAwakeTitle, s.clamshellTitle,
                                                       s.defaultDurationLabel, s.showCountdown,
+                                                      FeatureStrings.keepAwakeIslandBadge(language).toggle,
                                                       s.keepAwakeActiveIconLabel,
                                                       s.keepAwakeActiveIconCoffee,
                                                       s.keepAwakeActiveIconEye,
@@ -408,6 +409,7 @@ enum SettingsDirectory {
                                         (.wallpaper,
                                          [FeatureStrings.wallpaper(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
+                                        (.quickBar, [FeatureStrings.quickBar(language).pageTitle]),
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,

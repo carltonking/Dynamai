@@ -113,6 +113,7 @@ struct MetricsTests {
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
+                NotchLevelReadoutTests.run(suite)
                 NotchCompactTests.run(suite)
                 NotchCapsuleTests.run(suite)
                 PlainTextLineMoverTests.run(suite)
@@ -124,6 +125,7 @@ struct MetricsTests {
             ("agents", { NotchAgentTests.run(suite) }),
             ("hermes-chat", {
                 NotchHermesChatTests.run(suite)
+                NotchAgentTimeRevealTests.run(suite)
                 NotchAgentMessagingTests.run(suite)
                 NotchAgentDropTests.run(suite)
                 NotchSiriChatTests.run(suite)
@@ -214,10 +216,8 @@ struct MetricsTests {
                 DockPreviewFrameRestorationTests.run(suite)
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
-            ("menu-bar-hider", {
-                MenuBarHiderTests.run(suite)
-                MenuBarWeatherTests.run(suite)
-            }),
+            ("menu-bar-weather", { MenuBarWeatherTests.run(suite) }),
+            ("quick-bar", { QuickBarTests.run(suite) }),
             ("switcher", {
                 SwitcherScrollContract.run(suite)
                 SwitcherActivationTests.run(suite)
@@ -228,6 +228,7 @@ struct MetricsTests {
                 MenuPanelToggleLabelContract.run(suite)
                 KeepAwakeLidSleepTests.run { suite.expect($0, $1) }
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
+                KeepAwakeIslandBadgeTests.run(suite)
             }),
             ("wallpaper", { WallpaperContract.run(suite) }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),

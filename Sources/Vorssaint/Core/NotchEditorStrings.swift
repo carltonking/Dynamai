@@ -189,7 +189,7 @@ extension FeatureStrings {
             instinctChatSummary: "Your iMessage thread with Instinct.",
             calculatorSummary: "Type LaTeX or plain math and see the answer as you write.",
             siriChatSummary: "Your own assistant, on Apple Intelligence.",
-            museChatSummary: "Meta’s Muse agent, through the Muse app."
+            museChatSummary: "Meta’s Muse agent, through its website inside this app."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -264,7 +264,7 @@ extension FeatureStrings {
             instinctChatSummary: "Sua conversa do iMessage com o Instinct.",
             calculatorSummary: "Digite LaTeX ou uma conta comum e veja o resultado enquanto escreve.",
             siriChatSummary: "Seu próprio assistente, com a Apple Intelligence.",
-            museChatSummary: "O agente Muse da Meta, pelo app Muse."
+            museChatSummary: "O agente Muse da Meta, pelo site dele dentro deste app."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -339,7 +339,7 @@ extension FeatureStrings {
             instinctChatSummary: "Tu conversación de iMessage con Instinct.",
             calculatorSummary: "Escribe LaTeX o una operación normal y ve el resultado mientras escribes.",
             siriChatSummary: "Tu propio asistente, con Apple Intelligence.",
-            museChatSummary: "El agente Muse de Meta, a través de la app Muse."
+            museChatSummary: "El agente Muse de Meta, a través de su sitio web dentro de esta app."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -414,7 +414,7 @@ extension FeatureStrings {
             instinctChatSummary: "Vaša konverzácia s Instinctom v iMessage.",
             calculatorSummary: "Píšte LaTeX alebo bežný výpočet a výsledok uvidíte už počas písania.",
             siriChatSummary: "Váš vlastný asistent s Apple Intelligence.",
-            museChatSummary: "Agent Muse od Mety, cez aplikáciu Muse."
+            museChatSummary: "Agent Muse od Mety, cez jeho webovú stránku v tejto aplikácii."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -489,7 +489,7 @@ extension FeatureStrings {
             instinctChatSummary: "Dein iMessage-Verlauf mit Instinct.",
             calculatorSummary: "LaTeX oder normale Rechnungen eingeben und das Ergebnis beim Tippen sehen.",
             siriChatSummary: "Dein eigener Assistent, mit Apple Intelligence.",
-            museChatSummary: "Metas Agent Muse, über die Muse-App."
+            museChatSummary: "Metas Agent Muse, über seine Website in dieser App."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -564,7 +564,7 @@ extension FeatureStrings {
             instinctChatSummary: "Votre conversation iMessage avec Instinct.",
             calculatorSummary: "Saisissez du LaTeX ou un calcul simple et voyez le résultat pendant la saisie.",
             siriChatSummary: "Votre propre assistant, avec Apple Intelligence.",
-            museChatSummary: "L’agent Muse de Meta, via l’app Muse."
+            museChatSummary: "L’agent Muse de Meta, via son site web dans cette app."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -639,7 +639,7 @@ extension FeatureStrings {
             instinctChatSummary: "La tua conversazione iMessage con Instinct.",
             calculatorSummary: "Scrivi in LaTeX o con i normali operatori e vedi il risultato mentre scrivi.",
             siriChatSummary: "Il tuo assistente personale, con Apple Intelligence.",
-            museChatSummary: "L’agente Muse di Meta, tramite l’app Muse."
+            museChatSummary: "L’agente Muse di Meta, tramite il suo sito web in questa app."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -714,7 +714,7 @@ extension FeatureStrings {
             instinctChatSummary: "Ваша переписка с Instinct в iMessage.",
             calculatorSummary: "Пишите на LaTeX или обычными знаками и видите ответ прямо при вводе.",
             siriChatSummary: "Ваш собственный ассистент на Apple Intelligence.",
-            museChatSummary: "Агент Muse от Meta, через приложение Muse."
+            museChatSummary: "Агент Muse от Meta, через его сайт внутри этого приложения."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -789,7 +789,7 @@ extension FeatureStrings {
             instinctChatSummary: "Instinct ile iMessage yazışmanız.",
             calculatorSummary: "LaTeX ya da düz işlem yazın, sonucu yazarken görün.",
             siriChatSummary: "Apple Intelligence ile kendi asistanınız.",
-            museChatSummary: "Meta’nın Muse ajanı, Muse uygulaması üzerinden."
+            museChatSummary: "Meta’nın Muse ajanı, bu uygulamanın içindeki web sitesi üzerinden."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -864,7 +864,7 @@ extension FeatureStrings {
             instinctChatSummary: "InstinctとのiMessageのスレッド。",
             calculatorSummary: "LaTeXや普通の式を入力すると、入力中に答えが表示されます。",
             siriChatSummary: "Apple Intelligenceで動くあなた専用のアシスタント。",
-            museChatSummary: "MetaのエージェントMuse。Museアプリ経由で使います。"
+            museChatSummary: "MetaのエージェントMuse。このアプリ内のWebサイト経由で使います。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -939,7 +939,7 @@ extension FeatureStrings {
             instinctChatSummary: "Instinct와의 iMessage 대화.",
             calculatorSummary: "LaTeX나 일반 수식을 입력하면 입력하는 동안 답이 표시됩니다.",
             siriChatSummary: "Apple Intelligence 기반의 나만의 비서.",
-            museChatSummary: "Meta의 Muse 에이전트, Muse 앱을 통해 사용합니다."
+            museChatSummary: "Meta의 Muse 에이전트, 이 앱 안의 웹사이트를 통해 사용합니다."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -1014,7 +1014,7 @@ extension FeatureStrings {
             instinctChatSummary: "你与 Instinct 的 iMessage 对话。",
             calculatorSummary: "输入 LaTeX 或普通算式，边写边看结果。",
             siriChatSummary: "你自己的助理，由 Apple Intelligence 驱动。",
-            museChatSummary: "Meta 的 Muse 智能体，通过 Muse App 使用。"
+            museChatSummary: "Meta 的 Muse 智能体，通过此 App 内的网站使用。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -1089,7 +1089,7 @@ extension FeatureStrings {
             instinctChatSummary: "你與 Instinct 的 iMessage 對話。",
             calculatorSummary: "輸入 LaTeX 或一般算式，邊寫邊看結果。",
             siriChatSummary: "你自己的助理，由 Apple Intelligence 驅動。",
-            museChatSummary: "Meta 的 Muse 智能代理，透過 Muse App 使用。"
+            museChatSummary: "Meta 的 Muse 智能代理，透過此 App 內的網站使用。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -1164,7 +1164,7 @@ extension FeatureStrings {
             instinctChatSummary: "你與 Instinct 的 iMessage 對話。",
             calculatorSummary: "輸入 LaTeX 或一般算式，邊寫邊看結果。",
             siriChatSummary: "你自己的助理，由 Apple Intelligence 驅動。",
-            museChatSummary: "Meta 的 Muse 智能代理，透過 Muse App 使用。"
+            museChatSummary: "Meta 的 Muse 智能代理，透過此 App 內的網站使用。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1239,7 +1239,7 @@ extension FeatureStrings {
             instinctChatSummary: "Ваше листування з Instinct в iMessage.",
             calculatorSummary: "Пишіть LaTeX або звичайний вираз і бачте відповідь під час введення.",
             siriChatSummary: "Ваш власний асистент на Apple Intelligence.",
-            museChatSummary: "Агент Muse від Meta, через застосунок Muse."
+            museChatSummary: "Агент Muse від Meta, через його вебсайт у цьому застосунку."
         )
         }
     }

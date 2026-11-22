@@ -12,6 +12,9 @@ struct QuickToolsSettings: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
+    @ObservedObject private var quickBar = QuickBarService.shared
+    @AppStorage(DefaultsKey.quickBarShortcutEnabled) private var quickBarShortcutEnabled = true
+    @AppStorage(DefaultsKey.quickBarTextSize) private var quickBarTextSize = QuickBarSupport.defaultTextSize
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
@@ -264,6 +267,45 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
                 .settingsFormSectionAnchor(.scratchpad)
+            }
+
+            if AppFeature.quickBar.isAvailable {
+                Section {
+                    Button {
+                        QuickBarService.shared.show()
+                    } label: {
+                        Label(FeatureStrings.quickBar(l10n.language).openNow, systemImage: "text.bubble")
+                    }
+                    Text(FeatureStrings.quickBar(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(FeatureStrings.scratchpad(l10n.language).textSize)
+                            Spacer()
+                            Text("\(Int(QuickBarSupport.sanitizedTextSize(quickBarTextSize)))")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $quickBarTextSize, in: QuickBarSupport.textSizeRange, step: 1)
+                    }
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $quickBarShortcutEnabled)
+                        .onChange(of: quickBarShortcutEnabled) { _, _ in
+                            QuickBarService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .quickBar,
+                                          isEnabled: quickBarShortcutEnabled) {
+                        QuickBarService.shared.syncWithPreferences()
+                    }
+                    if quickBarShortcutEnabled, quickBar.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(FeatureStrings.quickBar(l10n.language).pageTitle)
+                }
+                .settingsFormSectionAnchor(.quickBar)
             }
 
             if AppFeature.cleaningMode.isAvailable {

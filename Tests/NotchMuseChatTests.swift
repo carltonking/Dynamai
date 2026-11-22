@@ -61,16 +61,6 @@ enum NotchMuseChatTests {
                          "Muse starting with a bold phrase is still Muse, not the person")
         }
 
-        suite.run("Muse's message field is found by the bubble the page draws for it") {
-            let field = Node(role: "AXButton", classes: ["backdrop-blur-elevation-01", "bg-fill-blur-thick", "shadow-blur-elevation-01"],
-                             title: "Message Attach file\nSend")
-            let reply = Node(role: "AXButton", classes: ["inline-flex"], title: "Reply")
-            suite.expect(Support.isComposer(field) && !Support.isComposer(reply),
-                         "the field is told apart from the buttons on messages")
-            suite.expect(Support.isComposer(Node(role: "AXButton", title: "Message Attach file\nSend")),
-                         "its words find it if the page renames its classes")
-        }
-
         let hello = Row(author: .person, text: "What's on today?")
         let answer = Row(author: .muse, text: "Two classes and a call at 4.")
         let start = Date(timeIntervalSince1970: 1_800_000_000)
@@ -149,9 +139,9 @@ enum NotchMuseChatTests {
         suite.run("Muse is an island page of its own, off until asked for") {
             suite.expect(AppFeature.notchMuseChat.group == .dynamicIsland
                          && !AppFeature.notchMuseChat.installedByDefault
-                         && AppFeature.notchMuseChat.permissions == [.accessibility]
+                         && AppFeature.notchMuseChat.permissions.isEmpty
                          && Defaults.registeredDefaults[DefaultsKey.notchMuseChatEnabled] as? Bool == false,
-                         "Muse is an uninstalled island extension that needs Accessibility, switched off")
+                         "Muse is an uninstalled island extension that needs no permission, switched off")
             suite.expect(NotchModule.museChat.isAgentChat
                          && NotchModule.museChat.symbol == AppFeature.notchMuseChat.symbolName
                          && NotchAgentReplySupport.noticeName("muse") == "MUSE",

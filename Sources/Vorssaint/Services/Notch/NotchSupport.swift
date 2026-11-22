@@ -8,7 +8,7 @@ import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
     case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, hermesChat, instinctChat, siriChat
-    // Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
+    // Meta's Muse, through its website inside this app (`NotchMuseWebClient`).
     case museChat
     // The iMessage agents beside Instinct, one page each (`NotchMessagesAgent`).
     case saunaChat, rhoChat, caddyChat, reneChat, folkChat, pokeChat, breaChat
@@ -1695,6 +1695,20 @@ enum NotchEvent: String, CaseIterable {
 }
 
 enum NotchSupport {
+    /// The home page's corner readout of a level the island holds as 0...1:
+    /// a whole percentage, or nil while the level is unknown.
+    static func levelPercent(_ level: Double?) -> String? {
+        guard let level, level.isFinite else { return nil }
+        return "\(Int((min(1, max(0, level)) * 100).rounded()))%"
+    }
+
+    /// The level keys raise no reading over the open island: the home page
+    /// carries their percentages in its corner instead. The keyboard light
+    /// has no readout there and keeps its reading.
+    static func readsLevelOverOpenIsland(_ event: NotchEvent) -> Bool {
+        event != .volume && event != .brightness
+    }
+
     /// Whether a connected display has a camera housing, wherever the island
     /// is: it can be off, withdrawn with the lid closed or on another display.
     static var hasNotchedDisplay: Bool {
@@ -2038,18 +2052,31 @@ enum NotchSupport {
     /// The closed island stays out of sight until the pointer reaches it.
     /// Unless set to show activity, it shows no notices while it waits.
     static func hidesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: DefaultsKey.notchHideUntilHover) && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
+        (defaults.bool(forKey: DefaultsKey.notchHideUntilHover) && defaults.bool(forKey: DefaultsKey.notchOpenOnHover))
+            || hidesWhenClosed(in: defaults)
+    }
+
+    /// No island at rest, whatever opens it: the shortcut, or hover when on.
+    static func hidesWhenClosed(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHideWhenClosed)
+    }
+
+    /// Hidden while closed, the island still comes out for every activity
+    /// and notice: only its resting shape goes away.
+    private static func showsActivityWhileHidden(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
+            || defaults.bool(forKey: DefaultsKey.notchHideWhenClosed)
     }
 
     /// Hidden until hover, the island can still come into sight for as long
     /// as an activity runs or a notice shows, and then it takes notices.
     static func hiddenShowsActivity(in defaults: UserDefaults = .standard) -> Bool {
-        hidesUntilHover(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
+        hidesUntilHover(in: defaults) && showsActivityWhileHidden(in: defaults)
     }
 
     /// Hidden until hover and out of sight for everything until then.
     static func hidesNoticesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
-        hidesUntilHover(in: defaults) && !defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
+        hidesUntilHover(in: defaults) && !showsActivityWhileHidden(in: defaults)
     }
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {

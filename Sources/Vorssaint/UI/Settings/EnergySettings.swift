@@ -32,6 +32,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var keepAwakeAutomationRequireAll = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
+    @AppStorage(DefaultsKey.keepAwakeIslandBadge) private var keepAwakeIslandBadge = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
@@ -214,6 +215,10 @@ struct EnergySettings: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    private var islandBadgeStrings: KeepAwakeIslandBadgeStrings {
+        FeatureStrings.keepAwakeIslandBadge(l10n.language)
+    }
+
     /// Everything else Keep Awake can do, one row each.
     private var keepAwakeOptionsCard: some View {
         SettingsCard(title: l10n.s.keepAwakeOptions) {
@@ -227,6 +232,10 @@ struct EnergySettings: View {
             }
             SettingsRow(symbol: "timer", title: l10n.s.showCountdown) {
                 Toggle(l10n.s.showCountdown, isOn: $showCountdown).labelsHidden()
+            }
+            SettingsRow(symbol: "capsule.inset.filled", title: islandBadgeStrings.toggle,
+                        caption: islandBadgeStrings.caption) {
+                Toggle(islandBadgeStrings.toggle, isOn: $keepAwakeIslandBadge).labelsHidden()
             }
             SettingsRow(symbol: "display", title: displaySleepStrings.allowDisplaySleep,
                         caption: displaySleepStrings.allowDisplaySleepCaption) {

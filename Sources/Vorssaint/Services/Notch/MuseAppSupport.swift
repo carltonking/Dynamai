@@ -3,16 +3,14 @@
 
 import Foundation
 
-/// Meta's Muse, read from and written to the Muse for Mac app.
+/// Meta's Muse, read from its chat page.
 ///
-/// Meta offers no API for the consumer agent. The Muse app keeps the
-/// conversation in a web view whose chat log Accessibility can read, but
-/// draws its message field natively where no other app can fill it in. So
-/// the island reads Muse's window as it changes, and sends the way a person
-/// would: Muse comes forward for a moment, the words are pasted into its
-/// field, and Return sends them (`NotchMuseAppClient`). Everything here is
-/// the part that needs no running Muse: what its window says, and what that
-/// means for the conversation, so it can be tested without signing in.
+/// Meta offers no API for the consumer agent. Muse's website (muse.ai), the
+/// page the Muse app also shows, runs inside this app out of sight
+/// (`NotchMuseWebClient`): its chat log is described the way Accessibility
+/// would describe it, and read here. Everything here is the part that needs
+/// no page: what the chat log says, and what that means for the
+/// conversation, so it can be tested without signing in.
 enum MuseAppSupport {
     static let bundleIdentifier = "com.meta.endo"
     /// How long Muse's last message must stay unchanged to count as whole:
@@ -26,13 +24,9 @@ enum MuseAppSupport {
     static let tailLength = 12
     /// A turn that hears nothing back in this long ends rather than spinning.
     static let answerTimeout: TimeInterval = 180
-    /// How often Muse is asked to open (or show its window) while the page
-    /// cannot see it, so a launch in progress is not asked for again.
-    static let summonInterval: TimeInterval = 20
-    /// How long a message waits for Muse to open before it fails.
-    static let openWait: TimeInterval = 25
-    /// A window Muse just opened loads its page before it can take a message.
-    static let windowSettle: TimeInterval = 2
+    /// How long a message waits for Muse's page to load (or for the person
+    /// to sign in) before it fails.
+    static let openWait: TimeInterval = 100
     /// Why a message did not go, shown inside the page's localized line, as
     /// the other transports' own reasons are.
     static let sendFailed = "Muse's message field could not be reached."
@@ -40,7 +34,7 @@ enum MuseAppSupport {
     /// Why the page cannot talk to Muse now. The client keeps watching, so
     /// the page recovers by itself once the reason is gone.
     enum Problem: String, Equatable, Codable {
-        /// Muse for Mac is not on this Mac.
+        /// Muse for Mac is not on this Mac (no longer reported: the page needs no app).
         case notInstalled
         /// This app may not read or press anything in another app's window.
         case needsAccessibility
@@ -157,16 +151,6 @@ enum MuseAppSupport {
 
     private static func contains(_ cls: String, in node: Node) -> Bool {
         node.classes.contains(cls) || node.children.contains { contains(cls, in: $0) }
-    }
-
-    /// Muse's message field: the bubble holding "Message", the attach button
-    /// and Send, drawn by the page under the native field it lines up with.
-    static func isComposer(_ node: Node) -> Bool {
-        guard node.role == "AXButton" else { return false }
-        if node.classes.contains("bg-fill-blur-thick") && node.classes.contains("backdrop-blur-elevation-01") {
-            return true
-        }
-        return node.title.hasPrefix("Message") && node.title.contains("Send")
     }
 
     // MARK: Following the conversation

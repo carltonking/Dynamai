@@ -112,10 +112,6 @@ enum SettingsBackupSupport {
         DefaultsKey.spacesOrderRestartPending,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
-        // Menu bar item numbers are learned per Mac and per macOS build.
-        DefaultsKey.menuBarHiderSystemItemNumbers,
-        DefaultsKey.menuBarHiderUncontrollableItems,
-        DefaultsKey.menuBarHiderSystemItemBuild,
         DefaultsKey.micMuteActive,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.

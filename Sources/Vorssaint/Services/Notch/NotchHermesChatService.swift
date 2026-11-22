@@ -29,7 +29,7 @@ final class NotchHermesChatService: ObservableObject {
     /// Which conversation an instance carries.
     enum Agent: Equatable, Hashable {
         case vertus, instinct, siri
-        /// Meta's Muse, through the Muse for Mac app (`NotchMuseAppClient`).
+        /// Meta's Muse, through its website inside this app (`NotchMuseWebClient`).
         case muse
         /// An iMessage agent beside Instinct, working exactly as Instinct does.
         case messages(NotchMessagesAgent)
@@ -557,19 +557,15 @@ final class NotchHermesChatService: ObservableObject {
         client.start()
     }
 
-    /// Muse, through the Muse for Mac app: its window is read as it changes,
-    /// and a message is pasted into it. The saved conversation tells the
-    /// client when each message in Muse's window was first seen.
+    /// Muse, through its website kept out of sight in this app: its chat is
+    /// read as it changes and messages are sent from inside the page, so the
+    /// Muse app never opens. The saved conversation tells the client when
+    /// each message on the page was first seen.
     private func connectToMuse() {
         if state != .connecting { state = .connecting }
         let current = UUID()
         generation = current
-        let module = agent.module
-        let client = NotchMuseAppClient(history: messages, returnToIsland: {
-            // Muse came forward to take the message and the island folded;
-            // it opens again on the page the message was typed on.
-            NotchService.shared.open(module, takeFocus: true)
-        }) { [weak self] event in
+        let client = NotchMuseWebClient(history: messages) { [weak self] event in
             guard let self, self.generation == current else { return }
             self.handle(event)
         }
@@ -577,13 +573,11 @@ final class NotchHermesChatService: ObservableObject {
         client.start()
     }
 
-    /// Brings the Muse app forward, opening it if it is not running: where
-    /// the person signs in, answers what Muse asks, or opens its window.
+    /// Shows Muse's page in a window of this app: where the person signs in,
+    /// answers what Muse asks, or uses anything the island does not show.
     func openMuseApp() {
-        guard agent == .muse,
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: MuseAppSupport.bundleIdentifier)
-        else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        guard agent == .muse else { return }
+        MainActor.assumeIsolated { MuseWebSession.shared.show() }
         if client == nil, agent.feature.isAvailable, UserDefaults.standard.bool(forKey: agent.enabledKey) { connect() }
     }
 
