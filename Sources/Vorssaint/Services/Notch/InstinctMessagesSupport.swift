@@ -100,6 +100,15 @@ struct InstinctChatRecord: Equatable {
 /// nothing here touches a process, the disk or the island.
 enum InstinctMessagesSupport {
     static let defaultCommand = "imsg"
+    /// Where the build puts the imsg release it ships inside the app.
+    static let bundledPath = "Contents/Helpers/imsg/imsg"
+
+    /// The imsg inside the app, so nobody has to install it; nil when a build
+    /// couldn't include it, and the PATH is searched instead.
+    static func bundledExecutable(appURL: URL = Bundle.main.bundleURL) -> URL? {
+        let url = appURL.appendingPathComponent(bundledPath)
+        return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
+    }
     /// The thread shown on opening: enough to pick up where the phone left
     /// off, within the page's own transcript cap.
     static let historyLimit = 60

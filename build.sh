@@ -58,6 +58,13 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
+# imsg (github.com/openclaw/imsg, MIT) reads and sends the iMessages the
+# island's agents are texted over. Its official release, signed and notarized
+# by its author, ships inside the app under Contents/Helpers/imsg with that
+# signature kept, so nobody has to install it. Pinned and checked by SHA-256.
+IMSG_VERSION="0.21.1"
+IMSG_SHA256="78fcd9b7770ca9ead71228acf186759279115078895d1ee1299a09333824c77f"
+IMSG_URL="https://github.com/openclaw/imsg/releases/download/v$IMSG_VERSION/imsg-macos.zip"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
@@ -725,6 +732,35 @@ cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
+# imsg, kept in build/objects so a release build's wipe doesn't download it
+# again. Without a network the app falls back to an imsg on the PATH.
+IMSG_CACHE="build/objects/imsg-$IMSG_VERSION"
+if [[ ! -x "$IMSG_CACHE/imsg" ]]; then
+    echo "▸ Fetching imsg $IMSG_VERSION…"
+    rm -rf "$IMSG_CACHE" "$IMSG_CACHE.zip"
+    mkdir -p build/objects
+    if curl -fsSL --retry 2 -o "$IMSG_CACHE.zip" "$IMSG_URL" \
+        && [[ "$(shasum -a 256 "$IMSG_CACHE.zip" | cut -d' ' -f1)" == "$IMSG_SHA256" ]] \
+        && ditto -x -k "$IMSG_CACHE.zip" "$IMSG_CACHE.tmp" \
+        && codesign --verify --strict "$IMSG_CACHE.tmp/imsg"; then
+        mv "$IMSG_CACHE.tmp" "$IMSG_CACHE"
+    else
+        rm -rf "$IMSG_CACHE.tmp"
+        echo "  ⚠ imsg could not be fetched or verified; this build doesn't include it" >&2
+    fi
+    rm -f "$IMSG_CACHE.zip"
+fi
+if [[ -x "$IMSG_CACHE/imsg" ]]; then
+    mkdir -p "$STAGE/Contents/Helpers/imsg"
+    ditto "$IMSG_CACHE" "$STAGE/Contents/Helpers/imsg"
+    # Its resource bundles hold data, not code, and ship unsigned; inside an
+    # app's code folder they need a signature of their own for the app's.
+    for imsg_bundle in "$STAGE/Contents/Helpers/imsg"/*.bundle(N); do
+        codesign --force --strip-disallowed-xattrs --sign - "$imsg_bundle"
+    done
+fi
+mkdir -p "$STAGE/Contents/Resources/ThirdParty"
+cp Resources/ThirdParty/*.txt "$STAGE/Contents/Resources/ThirdParty/"
 # Hidden Bar, built in: its arrow and separator images (by name, as its asset catalog had them).
 cp Resources/HiddenBar/*.png "$STAGE/Contents/Resources/"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"

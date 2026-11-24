@@ -9,6 +9,18 @@ import Foundation
 /// message has no words.
 enum NotchAgentMessagingTests {
     static func run(_ suite: TestSuite) {
+        suite.run("the imsg shipped inside the app is found, and only when it runs") {
+            let fileManager = FileManager.default
+            let app = fileManager.temporaryDirectory.appendingPathComponent("imsg-bundle-\(UUID().uuidString).app")
+            defer { try? fileManager.removeItem(at: app) }
+            suite.expect(InstinctMessagesSupport.bundledExecutable(appURL: app) == nil, "an app without imsg has none")
+            let tool = app.appendingPathComponent(InstinctMessagesSupport.bundledPath)
+            try? fileManager.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+            fileManager.createFile(atPath: tool.path, contents: Data("#!/bin/sh\n".utf8))
+            suite.expect(InstinctMessagesSupport.bundledExecutable(appURL: app) == nil, "a file that can't run is skipped")
+            try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+            suite.expect(InstinctMessagesSupport.bundledExecutable(appURL: app) == tool, "the shipped imsg is used")
+        }
         typealias Support = NotchAgentReplySupport
         typealias Message = NotchHermesChatMessage
 

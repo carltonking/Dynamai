@@ -514,10 +514,10 @@ final class NotchHermesChatService: ObservableObject {
     }
 
     /// The iMessage thread with the number from Settings (Instinct, or
-    /// VERTUS's Photon line), through `imsg` wherever Homebrew or the PATH
-    /// put it.
+    /// VERTUS's Photon line), through the `imsg` shipped inside the app, or
+    /// wherever Homebrew or the PATH put one when a build couldn't include it.
     private func connectToMessages(home: URL, number: String) {
-        guard let executable = HermesACPSupport.executable(
+        guard let executable = InstinctMessagesSupport.bundledExecutable() ?? HermesACPSupport.executable(
             command: InstinctMessagesSupport.defaultCommand, home: home,
             searchPath: ProcessInfo.processInfo.environment["PATH"])
         else {
