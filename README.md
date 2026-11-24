@@ -189,8 +189,8 @@ See the [permissions guide](docs/PERMISSIONS.md) for which features need access 
 ### Developing
 
 ```sh
-./build.sh --dev            # build the separate Developer variant
-./build.sh --dev --install  # install and launch it
+./build.sh                  # build Dynamai
+./build.sh --install        # build it and install it into /Applications
 ./build.sh --test           # run every test suite
 ```
 

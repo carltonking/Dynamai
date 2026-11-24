@@ -26,17 +26,15 @@ trap cleanup EXIT
 # into the build sweeps like any other ending.
 trap 'exit 1' INT TERM HUP
 
-# Flags: --dev builds the developer variant (its own bundle id, preferences
-# and permissions); --install puts it in /Applications. Both variants are
-# named Dynamai and install as /Applications/Dynamai.app: this Mac runs the
-# developer build as its everyday app, so it carries the app's plain name.
-DEV=0
+# Flags: --install puts the app in /Applications/Dynamai.app. There is only
+# one build, so DEV is always on; --dev is still accepted and does nothing.
+DEV=1
 INSTALL=0
 TEST=0
 TEST_ARGS=()
 for arg in "$@"; do
     case "$arg" in
-        --dev)     DEV=1 ;;
+        --dev)     ;;
         --install) INSTALL=1 ;;
         --test)    TEST=1 ;;
         --test-suite=*) TEST=1; TEST_ARGS+=("--suite=${arg#*=}") ;;
@@ -44,24 +42,17 @@ for arg in "$@"; do
     esac
 done
 
-if (( DEV )); then
-    APP_NAME="Dynamai"
-    EXECUTABLE="DynamaiDeveloper"
-    APP_BUNDLE_ID="com.dynamai.app.dev"
-    # The executable and identity the Developer build had before Dynamai.
-    PREVIOUS_EXECUTABLE="VorssaintDeveloper"
-    BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
-    APP_OPTIMIZATION_FLAGS=(-Onone)
-    BUILD_CONFIGURATION="debug"
-else
-    APP_NAME="Dynamai"
-    EXECUTABLE="Dynamai"
-    APP_BUNDLE_ID="com.dynamai.app"
-    PREVIOUS_EXECUTABLE="Vorssaint"
-    BUILD_VARIANT_FLAGS=()
-    APP_OPTIMIZATION_FLAGS=(-O)
-    BUILD_CONFIGURATION="release"
-fi
+# Dynamai has one build: the one this Mac runs. It keeps the identity the
+# former Developer build had (bundle id, executable, settings and the
+# permissions macOS granted it), so every build replaces that same app.
+APP_NAME="Dynamai"
+EXECUTABLE="DynamaiDeveloper"
+APP_BUNDLE_ID="com.dynamai.app.dev"
+# The executable and identity this build had before Dynamai.
+PREVIOUS_EXECUTABLE="VorssaintDeveloper"
+BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
+APP_OPTIMIZATION_FLAGS=(-Onone)
+BUILD_CONFIGURATION="debug"
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Now Playing is read through /usr/bin/perl loading this library; see
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.

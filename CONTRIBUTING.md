@@ -11,15 +11,13 @@ dependencies. `Package.swift` supports editor indexing; it does not assemble or
 sign the app bundle.
 
 ```sh
-./build.sh --dev
+./build.sh
 ./build/DynamaiDeveloper --selftest
 ./build.sh --test
 ```
 
-To install and launch the separate Developer app, use `./build.sh --dev --install`.
-It has its own preferences and permissions and does not replace the official app.
-A plain `./build.sh` builds the optimized variant used by CI; its health check is
-`./build/Dynamai --selftest`.
+Dynamai has one build. `./build.sh --install` builds it and replaces
+/Applications/Dynamai.app, keeping its preferences and permissions.
 
 ### Stable signing
 
@@ -36,7 +34,7 @@ Fan Control needs more than a stable identity: its helper runs as a privileged
 system daemon, and macOS will not execute one signed with the local self-signed
 certificate, so the feature reports the helper as unavailable. Sign a free Apple
 Development certificate from Xcode (Settings, Accounts, Manage Certificates) and
-`./build.sh --dev` uses it automatically. Every other feature works with the
+`./build.sh` uses it automatically. Every other feature works with the
 local identity.
 
 ## Scope and implementation
