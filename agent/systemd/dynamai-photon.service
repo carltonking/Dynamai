@@ -1,0 +1,23 @@
+[Unit]
+Description=Dynamai Photon iMessage bridge
+After=network-online.target dynamai-agent.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/dynamai-agent/channels/photon
+EnvironmentFile=/etc/dynamai-photon.env
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/bun run src/index.ts
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+# Keep this small so it can share the 1 GB VM with the hub.
+MemoryHigh=250M
+MemoryMax=400M
+
+[Install]
+WantedBy=multi-user.target

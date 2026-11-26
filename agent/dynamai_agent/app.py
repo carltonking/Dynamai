@@ -30,6 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 class PromptBody(BaseModel):
     text: str
     agent_id: str = AGENT_ID
+    conversation_id: str | None = None
 
 
 class ApprovalBody(BaseModel):
@@ -94,7 +95,13 @@ async def prompt(body: PromptBody, _auth: str = Depends(require_bearer)) -> JSON
     if not text:
         return _error(400, "text is required")
     try:
-        run_id = await engine.start_run(text=text, agent_id=body.agent_id, run_kind="user")
+        conversation_id = (body.conversation_id or "").strip() or None
+        run_id = await engine.start_run(
+            text=text,
+            agent_id=body.agent_id,
+            run_kind="user",
+            conversation_id=conversation_id,
+        )
     except ValueError as exc:
         return _error(400, str(exc))
     return JSONResponse({"accepted": True, "run_id": run_id}, status_code=202)

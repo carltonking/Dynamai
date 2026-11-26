@@ -97,6 +97,18 @@ class Database:
         with self._lock:
             self._conn.executescript(_SCHEMA)
             self._conn.commit()
+        self._migrate()
+
+
+    def _migrate(self) -> None:
+        """Additive, idempotent schema updates for existing hub databases."""
+        cols = {row["name"] for row in self.query("PRAGMA table_info(messages)")}
+        if "conversation_id" not in cols:
+            self.execute("ALTER TABLE messages ADD COLUMN conversation_id TEXT")
+        self.execute(
+            "CREATE INDEX IF NOT EXISTS idx_messages_conversation "
+            "ON messages(agent_id, conversation_id, id)"
+        )
 
     def close(self) -> None:
         with self._lock:
@@ -200,17 +212,42 @@ class Database:
 
     # --- messages / notes ---
 
-    def add_message(self, agent_id: str, role: str, content: str, run_id: str | None = None) -> None:
+    def add_message(
+        self,
+        agent_id: str,
+        role: str,
+        content: str,
+        run_id: str | None = None,
+        conversation_id: str | None = None,
+    ) -> None:
         self.execute(
-            "INSERT INTO messages (agent_id, run_id, role, content, ts) VALUES (?, ?, ?, ?, ?)",
-            (agent_id, run_id, role, content, time.time()),
+            """INSERT INTO messages (agent_id, run_id, role, content, ts, conversation_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (agent_id, run_id, role, content, time.time(), conversation_id),
         )
 
-    def recent_messages(self, agent_id: str, limit: int) -> list[sqlite3.Row]:
-        rows = self.query(
-            "SELECT role, content, ts FROM messages WHERE agent_id = ? ORDER BY id DESC LIMIT ?",
-            (agent_id, limit),
-        )
+    def recent_messages(
+        self,
+        agent_id: str,
+        limit: int,
+        conversation_id: str | None = None,
+    ) -> list[sqlite3.Row]:
+        # A missing conversation_id is the island/default thread. Channel
+        # conversations (e.g. iMessage per sender) are stored separately.
+        if conversation_id:
+            rows = self.query(
+                """SELECT role, content, ts FROM messages
+                   WHERE agent_id = ? AND conversation_id = ?
+                   ORDER BY id DESC LIMIT ?""",
+                (agent_id, conversation_id, limit),
+            )
+        else:
+            rows = self.query(
+                """SELECT role, content, ts FROM messages
+                   WHERE agent_id = ? AND conversation_id IS NULL
+                   ORDER BY id DESC LIMIT ?""",
+                (agent_id, limit),
+            )
         return list(reversed(rows))
 
     def add_note(self, content: str, title: str | None = None) -> int:

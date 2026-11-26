@@ -96,13 +96,16 @@ class Engine:
         source: str | None = None,
         channel: str | None = None,
         reply_to: str | None = None,
+        conversation_id: str | None = None,
     ) -> str:
         if agent_id != AGENT_ID:
             raise ValueError(f"unknown agent: {agent_id}")
         run_id = uuid.uuid4().hex[:16]
         self.db.insert_run(run_id, agent_id, run_kind, text, routine_id=routine_id, source=source)
         if run_kind == "user":
-            self.db.add_message(agent_id, "user", text, run_id=run_id)
+            self.db.add_message(
+                agent_id, "user", text, run_id=run_id, conversation_id=conversation_id
+            )
         if run_kind == "routine":
             await self.bus.publish(
                 {
@@ -114,7 +117,7 @@ class Engine:
                 }
             )
         task = asyncio.create_task(
-            self._execute(run_id, text, agent_id, run_kind, channel, reply_to),
+            self._execute(run_id, text, agent_id, run_kind, channel, reply_to, conversation_id),
             name=f"run-{run_id}",
         )
         self._tasks[run_id] = task
@@ -134,12 +137,13 @@ class Engine:
         run_kind: str,
         channel: str | None,
         reply_to: str | None,
+        conversation_id: str | None,
     ) -> None:
         self.db.set_run_status(run_id, "running")
         collected: list[str] = []
         try:
             await self.emit(run_id, "activity", text="thinking…")
-            messages = self._history(agent_id, text, run_kind)
+            messages = self._history(agent_id, text, run_kind, conversation_id)
             client = self._anthropic()
             while not self.is_cancelled(run_id):
                 try:
@@ -205,7 +209,9 @@ class Engine:
 
             reply = "".join(collected).strip()
             if reply:
-                self.db.add_message(agent_id, "assistant", reply, run_id=run_id)
+                self.db.add_message(
+                    agent_id, "assistant", reply, run_id=run_id, conversation_id=conversation_id
+                )
             await self.emit(run_id, "done")
             self.db.set_run_status(run_id, "done")
             if channel and reply_to and reply:
@@ -224,8 +230,14 @@ class Engine:
         finally:
             self._cancel.discard(run_id)
 
-    def _history(self, agent_id: str, text: str, run_kind: str) -> list[dict[str, Any]]:
-        rows = self.db.recent_messages(agent_id, HISTORY_TURNS * 2)
+    def _history(
+        self,
+        agent_id: str,
+        text: str,
+        run_kind: str,
+        conversation_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self.db.recent_messages(agent_id, HISTORY_TURNS * 2, conversation_id=conversation_id)
         # The current user prompt was just stored for user runs; keep it as the last turn.
         messages: list[dict[str, Any]] = []
         for row in rows:

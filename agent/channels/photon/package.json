@@ -1,0 +1,16 @@
+{
+  "name": "dynamai-photon",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@spectrum-ts/core": "^12.2.0",
+    "@spectrum-ts/imessage": "^12.2.0"
+  },
+  "devDependencies": {
+    "bun-types": "1.4.5"
+  }
+}

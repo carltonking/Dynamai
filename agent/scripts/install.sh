@@ -21,7 +21,7 @@ apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip >/dev/null
 
 mkdir -p "$PREFIX" "$DATA" "$DATA/.vertus" "$DATA/workspace"
-rsync -a --delete --exclude '.venv' --exclude '__pycache__' --exclude '*.sqlite' --exclude '.data' "$SRC/" "$PREFIX/"
+rsync -a --delete --exclude '.venv' --exclude '__pycache__' --exclude '*.sqlite' --exclude '.data' --exclude 'node_modules' "$SRC/" "$PREFIX/"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PREFIX" "$DATA"
 chmod 700 "$DATA" "$DATA/.vertus"
 
@@ -52,4 +52,12 @@ systemctl restart dynamai-agent
 # Give uvicorn a moment, then show status without env contents.
 sleep 2
 systemctl --no-pager --full status dynamai-agent || true
+
+PHOTON_ENV="${DYNAMAI_PHOTON_ENV_FILE:-/etc/dynamai-photon.env}"
+if [[ -f "$PHOTON_ENV" ]]; then
+  echo "photon env file present; installing / upgrading the iMessage bridge…"
+  "$SRC/scripts/install-photon.sh"
+else
+  echo "no $PHOTON_ENV yet; skip Photon iMessage bridge. See README.md."
+fi
 echo "install complete. the hub listens on 127.0.0.1:8787."
