@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 5 minutes, try to create vertus-cloud if it does not exist
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=vertus-retry.service
+
+[Install]
+WantedBy=timers.target

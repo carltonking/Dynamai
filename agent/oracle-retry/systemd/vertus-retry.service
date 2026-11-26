@@ -1,0 +1,20 @@
+[Unit]
+Description=Retry creation of Oracle Always Free A1 instance vertus-cloud
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+MemoryMax=300M
+TimeoutStartSec=8min
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/vertus-retry/run.sh
+# Protect the 1 GB carlton-agent VM; do not restart in a tight loop.
+SuccessExitStatus=0 10
+
+[Install]
+WantedBy=multi-user.target
