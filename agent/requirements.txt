@@ -1,0 +1,5 @@
+# Pinned lightly so a 1 GB VM can pip-install without a lockfile fight.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
+anthropic>=0.73,<1
+httpx>=0.27,<1

@@ -1,0 +1,24 @@
+[Unit]
+Description=Dynamai personal-agent hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/dynamai-agent
+EnvironmentFile=/etc/dynamai-agent.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/dynamai-agent/.venv/bin/python -m dynamai_agent
+Restart=on-failure
+RestartSec=5
+# The process binds 127.0.0.1:8787 only; reach it with an SSH tunnel.
+NoNewPrivileges=true
+PrivateTmp=true
+# Leave headroom on the 1 GB machine; swap covers short spikes.
+MemoryHigh=700M
+MemoryMax=850M
+
+[Install]
+WantedBy=multi-user.target
